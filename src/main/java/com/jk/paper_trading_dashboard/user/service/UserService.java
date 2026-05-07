@@ -6,8 +6,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.jk.paper_trading_dashboard.shared.exception.AlreadyExistsException;
 import com.jk.paper_trading_dashboard.shared.exception.UnauthorizedException;
 import com.jk.paper_trading_dashboard.shared.security.JwtService;
+import com.jk.paper_trading_dashboard.shared.security.UserPrincipal;
 import com.jk.paper_trading_dashboard.user.api.dto.UserLoginRequest;
 import com.jk.paper_trading_dashboard.user.api.dto.UserRegistrationRequest;
+import com.jk.paper_trading_dashboard.user.api.dto.UserResponse;
 import com.jk.paper_trading_dashboard.user.domain.User;
 import com.jk.paper_trading_dashboard.user.repository.UserRepository;
 
@@ -44,6 +46,10 @@ public class UserService {
     }
 
     return createToken(user);
+  }
+
+  public UserResponse getCurrentUser(UserPrincipal user) {
+    return new UserResponse(user.userId(), user.email());
   }
 
   private String createToken(User user) {
