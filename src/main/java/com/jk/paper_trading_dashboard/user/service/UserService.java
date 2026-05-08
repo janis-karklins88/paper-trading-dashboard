@@ -3,6 +3,8 @@ package com.jk.paper_trading_dashboard.user.service;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.jk.paper_trading_dashboard.broker.domain.BrokerAccount;
+import com.jk.paper_trading_dashboard.broker.repository.BrokerAccountRepository;
 import com.jk.paper_trading_dashboard.shared.exception.AlreadyExistsException;
 import com.jk.paper_trading_dashboard.shared.exception.UnauthorizedException;
 import com.jk.paper_trading_dashboard.shared.security.JwtService;
@@ -18,11 +20,17 @@ import jakarta.transaction.Transactional;
 @Service
 public class UserService {
   private final UserRepository userRepo;
+  private final BrokerAccountRepository brokerAccountRepository;
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
 
-  public UserService(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtService jwtService) {
+  public UserService(
+      UserRepository userRepo,
+      BrokerAccountRepository brokerAccountRepository,
+      PasswordEncoder passwordEncoder,
+      JwtService jwtService) {
     this.userRepo = userRepo;
+    this.brokerAccountRepository = brokerAccountRepository;
     this.passwordEncoder = passwordEncoder;
     this.jwtService = jwtService;
   }
@@ -34,6 +42,7 @@ public class UserService {
     }
 
     User user = userRepo.save(new User(request.email(), passwordEncoder.encode(request.password())));
+    brokerAccountRepository.save(new BrokerAccount(user.getId(), "fake-" + user.getId()));
     return createToken(user);
   }
 
