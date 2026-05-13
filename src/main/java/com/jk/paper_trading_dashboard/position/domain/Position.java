@@ -97,6 +97,20 @@ public class Position {
     this.updatedAt = this.openedAt;
   }
 
+  public BigDecimal close() {
+    if (this.status != PositionStatus.OPEN) {
+      throw new IllegalStateException("Only open positions can be closed");
+    }
+
+    BigDecimal closingPnl = calculateUnrealizedPnl();
+    this.realizedPnl = this.realizedPnl.add(closingPnl);
+    this.unrealizedPnl = BigDecimal.ZERO;
+    this.status = PositionStatus.CLOSED;
+    this.closedAt = Instant.now();
+    this.updatedAt = this.closedAt;
+    return closingPnl;
+  }
+
   private BigDecimal calculateUnrealizedPnl() {
     return switch (side) {
       case LONG -> currentPrice.subtract(avgEntryPrice).multiply(quantity);

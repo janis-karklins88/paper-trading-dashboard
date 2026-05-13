@@ -86,6 +86,59 @@ public class TradingAccount {
     this.updatedAt = Instant.now();
   }
 
+  public void reserveMargin(BigDecimal marginAmount) {
+    if (marginAmount == null || marginAmount.signum() <= 0) {
+      throw new IllegalArgumentException("marginAmount must be greater than zero");
+    }
+
+    if (cashBalance.compareTo(marginAmount) < 0) {
+      throw new IllegalArgumentException("Insufficient cash balance");
+    }
+
+    this.cashBalance = this.cashBalance.subtract(marginAmount);
+    this.reservedMargin = this.reservedMargin.add(marginAmount);
+    this.updatedAt = Instant.now();
+  }
+
+  public void releaseMargin(BigDecimal marginAmount) {
+    if (marginAmount == null || marginAmount.signum() <= 0) {
+      throw new IllegalArgumentException("marginAmount must be greater than zero");
+    }
+
+    BigDecimal releasedMargin = marginAmount.min(this.reservedMargin);
+    this.reservedMargin = this.reservedMargin.subtract(releasedMargin);
+    this.cashBalance = this.cashBalance.add(releasedMargin);
+    this.updatedAt = Instant.now();
+  }
+
+  public void applyPositionOpen(BigDecimal unrealizedPnl) {
+    if (unrealizedPnl == null) {
+      throw new IllegalArgumentException("unrealizedPnl is required");
+    }
+
+    this.unrealizedPnl = this.unrealizedPnl.add(unrealizedPnl);
+    this.updatedAt = Instant.now();
+  }
+
+  public void applyPositionClose(BigDecimal realizedPnl, BigDecimal releasedMargin) {
+    if (realizedPnl == null) {
+      throw new IllegalArgumentException("realizedPnl is required");
+    }
+
+    if (releasedMargin == null || releasedMargin.signum() < 0) {
+      throw new IllegalArgumentException("releasedMargin must be zero or greater");
+    }
+
+    this.cashBalance = this.cashBalance.add(releasedMargin).add(realizedPnl);
+    this.reservedMargin = this.reservedMargin.subtract(releasedMargin);
+    if (this.reservedMargin.signum() < 0) {
+      this.reservedMargin = BigDecimal.ZERO;
+    }
+    this.realizedPnl = this.realizedPnl.add(realizedPnl);
+    this.unrealizedPnl = this.unrealizedPnl.subtract(realizedPnl);
+    this.updatedAt = Instant.now();
+  }
+
   public BigDecimal getEquity() {
     return cashBalance
         .add(unrealizedPnl);

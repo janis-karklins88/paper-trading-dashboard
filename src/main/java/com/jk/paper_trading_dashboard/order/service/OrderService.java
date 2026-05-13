@@ -1,18 +1,26 @@
 package com.jk.paper_trading_dashboard.order.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
+import com.jk.paper_trading_dashboard.alpaca.MarketDataClient;
+import com.jk.paper_trading_dashboard.alpaca.MarketPrice;
 import com.jk.paper_trading_dashboard.order.domain.Order;
+import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
-import com.jk.paper_trading_dashboard.order.domain.OrderType;
 import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.dto.PlaceOrderRequest;
 import com.jk.paper_trading_dashboard.order.exception.InvalidOrderException;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.position.domain.Position;
+import com.jk.paper_trading_dashboard.position.domain.PositionSide;
+import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
+import com.jk.paper_trading_dashboard.position.service.PositionService;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
 import jakarta.transaction.Transactional;
@@ -22,20 +30,136 @@ public class OrderService {
 
   private final OrderRepository orderRepository;
   private final TradingAccountService tradingAccountService;
+  private final PositionService positionService;
+  private final MarketDataClient marketDataClient;
 
   public OrderService(
       OrderRepository orderRepository,
-      TradingAccountService tradingAccountService) {
+      TradingAccountService tradingAccountService,
+      PositionService positionService,
+      MarketDataClient marketDataClient) {
     this.orderRepository = orderRepository;
     this.tradingAccountService = tradingAccountService;
+    this.positionService = positionService;
+    this.marketDataClient = marketDataClient;
   }
 
   @Transactional
   public OrderResponse placeOrder(UUID userId, PlaceOrderRequest request) {
-    Order order = createPendingOrder(userId, request);
+    TradingAccount account = tradingAccountService.getActiveAccount(userId);
+
+    return switch (request.type()) {
+      case MARKET -> placeMarketOrder(account, request);
+      case LIMIT -> placeLimitOrder(account, request);
+    };
+  }
+
+  private OrderResponse placeMarketOrder(TradingAccount account, PlaceOrderRequest request) {
+    validateMarketOrder(account, request);
+
+    Order order = Order.pendingMarketOrder(
+        account.getId(),
+        request.symbol(),
+        request.side(),
+        request.marginAmount(),
+        request.leverage(),
+        request.takeProfitPrice(),
+        request.stopLossPrice());
+
+    reserveMargin(account, request.marginAmount());
+
+    BigDecimal marketPrice = getMarketPrice(request.symbol());
+    order.markFilled(marketPrice);
+
+    Position position = positionService.createPositionForAccount(
+        account.getId(),
+        createPositionRequest(request, order, marketPrice));
+    account.applyPositionOpen(position.getUnrealizedPnl());
+
     orderRepository.save(order);
 
     return OrderResponse.from(order);
+  }
+
+  private OrderResponse placeLimitOrder(TradingAccount account, PlaceOrderRequest request) {
+    validateLimitOrder(account, request);
+
+    Order order = Order.pendingLimitOrder(
+        account.getId(),
+        request.symbol(),
+        request.side(),
+        request.marginAmount(),
+        request.leverage(),
+        request.limitPrice(),
+        request.takeProfitPrice(),
+        request.stopLossPrice());
+
+    reserveMargin(account, request.marginAmount());
+    order.markOpen();
+    orderRepository.save(order);
+
+    return OrderResponse.from(order);
+  }
+
+  private void validateMarketOrder(TradingAccount account, PlaceOrderRequest request) {
+    validateOrder(account, request);
+
+    if (request.limitPrice() != null) {
+      throw new InvalidOrderException("Market order cannot have limit price");
+    }
+  }
+
+  private void validateLimitOrder(TradingAccount account, PlaceOrderRequest request) {
+    validateOrder(account, request);
+
+    if (request.limitPrice() == null) {
+      throw new InvalidOrderException("Limit order requires limit price");
+    }
+  }
+
+  private void validateOrder(TradingAccount account, PlaceOrderRequest request) {
+    if (request.leverage().compareTo(account.getMaxLeverage()) > 0) {
+      throw new InvalidOrderException("Leverage cannot exceed account max leverage");
+    }
+
+    if (account.getCashBalance().compareTo(request.marginAmount()) < 0) {
+      throw new InvalidOrderException("Insufficient cash balance");
+    }
+  }
+
+  private void reserveMargin(TradingAccount account, BigDecimal marginAmount) {
+    account.reserveMargin(marginAmount);
+  }
+
+  private BigDecimal getMarketPrice(String symbol) {
+    MarketPrice marketPrice = marketDataClient.getLatestPrice(symbol);
+
+    if (marketPrice == null || marketPrice.price() == null || marketPrice.price().signum() <= 0) {
+      throw new InvalidOrderException("Market price is unavailable");
+    }
+
+    return marketPrice.price();
+  }
+
+  private CreatePositionRequest createPositionRequest(
+      PlaceOrderRequest request,
+      Order order,
+      BigDecimal marketPrice) {
+    return new CreatePositionRequest(
+        request.symbol(),
+        positionSide(request.side()),
+        order.getQuantity(),
+        marketPrice,
+        marketPrice,
+        request.marginAmount(),
+        request.leverage());
+  }
+
+  private PositionSide positionSide(OrderSide orderSide) {
+    return switch (orderSide) {
+      case BUY -> PositionSide.LONG;
+      case SELL -> PositionSide.SHORT;
+    };
   }
 
   public List<OrderResponse> getOrders(UUID userId) {
@@ -54,51 +178,19 @@ public class OrderService {
 
   @Transactional
   public OrderResponse cancelOrder(UUID userId, UUID orderId) {
-    Order order = getUserOrder(userId, orderId);
+    TradingAccount account = tradingAccountService.getActiveAccount(userId);
+    Order order = getAccountOrder(account.getId(), orderId);
 
     if (!isCancelable(order.getStatus())) {
       throw new InvalidOrderException("Order cannot be canceled from status " + order.getStatus());
     }
 
+    if (order.getStatus() == OrderStatus.OPEN) {
+      account.releaseMargin(order.getMarginAmount());
+    }
+
     order.markCanceled();
     return OrderResponse.from(order);
-  }
-
-  private Order createPendingOrder(UUID userId, PlaceOrderRequest request) {
-    UUID tradingAccountId = getTradingAccountId(userId);
-
-    if (request.type() == OrderType.MARKET) {
-      if (request.limitPrice() != null) {
-        throw new InvalidOrderException("Market order cannot have limit price");
-      }
-
-      return Order.pendingMarketOrder(
-          tradingAccountId,
-          request.symbol(),
-          request.side(),
-          request.marginAmount(),
-          request.leverage(),
-          request.takeProfitPrice(),
-          request.stopLossPrice());
-    }
-
-    if (request.type() == OrderType.LIMIT) {
-      if (request.limitPrice() == null) {
-        throw new InvalidOrderException("Limit order requires limit price");
-      }
-
-      return Order.pendingLimitOrder(
-          tradingAccountId,
-          request.symbol(),
-          request.side(),
-          request.marginAmount(),
-          request.leverage(),
-          request.limitPrice(),
-          request.takeProfitPrice(),
-          request.stopLossPrice());
-    }
-
-    throw new InvalidOrderException("Unsupported order type");
   }
 
   private UUID getTradingAccountId(UUID userId) {
@@ -108,6 +200,10 @@ public class OrderService {
   private Order getUserOrder(UUID userId, UUID orderId) {
     UUID tradingAccountId = getTradingAccountId(userId);
 
+    return getAccountOrder(tradingAccountId, orderId);
+  }
+
+  private Order getAccountOrder(UUID tradingAccountId, UUID orderId) {
     return orderRepository.findByIdAndTradingAccountId(orderId, tradingAccountId)
         .orElseThrow(() -> new NotFoundException("Order not found"));
   }
