@@ -10,7 +10,7 @@ import com.jk.paper_trading_dashboard.order.domain.Order;
 
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
-  List<Order> findByUserIdOrderByCreatedAtDesc(UUID userId);
+  List<Order> findByTradingAccountIdOrderByCreatedAtDesc(UUID tradingAccountId);
 
-  Optional<Order> findByIdAndUserId(UUID id, UUID userId);
+  Optional<Order> findByIdAndTradingAccountId(UUID id, UUID tradingAccountId);
 }

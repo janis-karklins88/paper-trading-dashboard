@@ -5,16 +5,12 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.jk.paper_trading_dashboard.alpaca.BrokerClient;
-import com.jk.paper_trading_dashboard.alpaca.dto.BrokerOrderRequest;
-import com.jk.paper_trading_dashboard.alpaca.dto.BrokerOrderResponse;
-import com.jk.paper_trading_dashboard.broker.repository.BrokerAccountRepository;
+import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
 import com.jk.paper_trading_dashboard.order.domain.OrderType;
 import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.dto.PlaceOrderRequest;
-import com.jk.paper_trading_dashboard.order.exception.BrokerOrderRejectedException;
 import com.jk.paper_trading_dashboard.order.exception.InvalidOrderException;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
@@ -24,42 +20,28 @@ import jakarta.transaction.Transactional;
 @Service
 public class OrderService {
 
-  private final BrokerClient brokerClient;
   private final OrderRepository orderRepository;
-  private final BrokerAccountRepository brokerAccountRepository;
+  private final TradingAccountService tradingAccountService;
 
   public OrderService(
-      BrokerClient brokerClient,
       OrderRepository orderRepository,
-      BrokerAccountRepository brokerAccountRepository) {
-    this.brokerClient = brokerClient;
+      TradingAccountService tradingAccountService) {
     this.orderRepository = orderRepository;
-    this.brokerAccountRepository = brokerAccountRepository;
+    this.tradingAccountService = tradingAccountService;
   }
 
   @Transactional
   public OrderResponse placeOrder(UUID userId, PlaceOrderRequest request) {
     Order order = createPendingOrder(userId, request);
-
-    try {
-      BrokerOrderResponse brokerResponse = brokerClient.placeOrder(
-          BrokerOrderRequest.from(order));
-
-      order.markSubmitted(
-          brokerResponse.brokerOrderId(),
-          brokerResponse.brokerStatus());
-
-    } catch (BrokerOrderRejectedException ex) {
-      order.markRejected(ex.getMessage(), ex.getBrokerStatus());
-    }
-
     orderRepository.save(order);
 
     return OrderResponse.from(order);
   }
 
   public List<OrderResponse> getOrders(UUID userId) {
-    return orderRepository.findByUserIdOrderByCreatedAtDesc(userId)
+    UUID tradingAccountId = getTradingAccountId(userId);
+
+    return orderRepository.findByTradingAccountIdOrderByCreatedAtDesc(tradingAccountId)
         .stream()
         .map(OrderResponse::from)
         .toList();
@@ -78,16 +60,12 @@ public class OrderService {
       throw new InvalidOrderException("Order cannot be canceled from status " + order.getStatus());
     }
 
-    if (order.getBrokerOrderId() != null && !order.getBrokerOrderId().isBlank()) {
-      brokerClient.cancelOrder(order.getBrokerOrderId());
-    }
-
-    order.markCanceled("canceled");
+    order.markCanceled();
     return OrderResponse.from(order);
   }
 
   private Order createPendingOrder(UUID userId, PlaceOrderRequest request) {
-    UUID brokerAccountId = getBrokerAccountId(userId);
+    UUID tradingAccountId = getTradingAccountId(userId);
 
     if (request.type() == OrderType.MARKET) {
       if (request.limitPrice() != null) {
@@ -95,11 +73,13 @@ public class OrderService {
       }
 
       return Order.pendingMarketOrder(
-          userId,
-          brokerAccountId,
+          tradingAccountId,
           request.symbol(),
           request.side(),
-          request.quantity());
+          request.marginAmount(),
+          request.leverage(),
+          request.takeProfitPrice(),
+          request.stopLossPrice());
     }
 
     if (request.type() == OrderType.LIMIT) {
@@ -108,32 +88,34 @@ public class OrderService {
       }
 
       return Order.pendingLimitOrder(
-          userId,
-          brokerAccountId,
+          tradingAccountId,
           request.symbol(),
           request.side(),
-          request.quantity(),
-          request.limitPrice());
+          request.marginAmount(),
+          request.leverage(),
+          request.limitPrice(),
+          request.takeProfitPrice(),
+          request.stopLossPrice());
     }
 
     throw new InvalidOrderException("Unsupported order type");
   }
 
-  private UUID getBrokerAccountId(UUID userId) {
-    return brokerAccountRepository.findByUserIdAndActiveTrue(userId)
-        .orElseThrow(() -> new NotFoundException("Active broker account not found"))
-        .getId();
+  private UUID getTradingAccountId(UUID userId) {
+    return tradingAccountService.getActiveAccount(userId).getId();
   }
 
   private Order getUserOrder(UUID userId, UUID orderId) {
-    return orderRepository.findByIdAndUserId(orderId, userId)
+    UUID tradingAccountId = getTradingAccountId(userId);
+
+    return orderRepository.findByIdAndTradingAccountId(orderId, tradingAccountId)
         .orElseThrow(() -> new NotFoundException("Order not found"));
   }
 
   private boolean isCancelable(OrderStatus status) {
     return switch (status) {
-      case PENDING, SUBMITTED, ACCEPTED, PARTIALLY_FILLED -> true;
-      case FILLED, REJECTED, CANCELED, FAILED -> false;
+      case PENDING, OPEN -> true;
+      case FILLED, REJECTED, CANCELED -> false;
     };
   }
 

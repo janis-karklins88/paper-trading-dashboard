@@ -1,6 +1,7 @@
 package com.jk.paper_trading_dashboard.order.domain;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -16,12 +17,14 @@ import jakarta.persistence.Table;
 @Table(name = "orders")
 public class Order {
 
+  private static final int QUANTITY_SCALE = 8;
+
   @Id
   @Column(nullable = false, updatable = false)
   private UUID id;
 
   @Column(nullable = false, updatable = false)
-  private UUID userId;
+  private UUID tradingAccountId;
 
   @Column(nullable = false)
   private String symbol;
@@ -34,14 +37,23 @@ public class Order {
   @Column(nullable = false)
   private OrderType type;
 
-  @Column(nullable = false, precision = 19, scale = 8)
+  @Column(precision = 19, scale = 8)
   private BigDecimal quantity;
+
+  @Column(nullable = false, precision = 19, scale = 8)
+  private BigDecimal marginAmount;
+
+  @Column(nullable = false, precision = 10, scale = 2)
+  private BigDecimal leverage;
+
+  @Column(nullable = false, precision = 19, scale = 8)
+  private BigDecimal notionalValue;
+
+  @Column(precision = 19, scale = 8)
+  private BigDecimal filledPrice;
 
   @Column(precision = 19, scale = 8)
   private BigDecimal limitPrice;
-
-  @Column(precision = 19, scale = 8)
-  private BigDecimal stopPrice;
 
   @Column(precision = 19, scale = 8)
   private BigDecimal takeProfitPrice;
@@ -53,22 +65,12 @@ public class Order {
   @Column(nullable = false)
   private OrderStatus status;
 
-  private String brokerOrderId;
-
-  @Column(nullable = false)
-  private UUID brokerAccountId;
-
-  private String brokerOrderStatus;
-
-  @Column(precision = 19, scale = 8)
-  private BigDecimal filledQuantity;
-
   private String rejectReason;
 
   @Column(nullable = false)
   private Instant createdAt;
 
-  private Instant submittedAt;
+  private Instant openedAt;
 
   private Instant filledAt;
 
@@ -79,108 +81,119 @@ public class Order {
   }
 
   public static Order pendingMarketOrder(
-      UUID userId,
-      UUID brokerAccountId,
+      UUID tradingAccountId,
       String symbol,
       OrderSide side,
-      BigDecimal quantity) {
-    Order order = pendingOrder(userId, brokerAccountId, symbol, side, OrderType.MARKET, quantity);
-    return order;
+      BigDecimal marginAmount,
+      BigDecimal leverage,
+      BigDecimal takeProfitPrice,
+      BigDecimal stopLossPrice) {
+    return pendingOrder(
+        tradingAccountId,
+        symbol,
+        side,
+        OrderType.MARKET,
+        marginAmount,
+        leverage,
+        null,
+        takeProfitPrice,
+        stopLossPrice);
   }
 
   public static Order pendingLimitOrder(
-      UUID userId,
-      UUID brokerAccountId,
+      UUID tradingAccountId,
       String symbol,
       OrderSide side,
-      BigDecimal quantity,
-      BigDecimal limitPrice) {
+      BigDecimal marginAmount,
+      BigDecimal leverage,
+      BigDecimal limitPrice,
+      BigDecimal takeProfitPrice,
+      BigDecimal stopLossPrice) {
     requirePositive(limitPrice, "limitPrice");
 
-    Order order = pendingOrder(userId, brokerAccountId, symbol, side, OrderType.LIMIT, quantity);
-    order.limitPrice = limitPrice;
-    return order;
+    return pendingOrder(
+        tradingAccountId,
+        symbol,
+        side,
+        OrderType.LIMIT,
+        marginAmount,
+        leverage,
+        limitPrice,
+        takeProfitPrice,
+        stopLossPrice);
   }
 
   private static Order pendingOrder(
-      UUID userId,
-      UUID brokerAccountId,
+      UUID tradingAccountId,
       String symbol,
       OrderSide side,
       OrderType type,
-      BigDecimal quantity) {
-    requirePositive(quantity, "quantity");
+      BigDecimal marginAmount,
+      BigDecimal leverage,
+      BigDecimal limitPrice,
+      BigDecimal takeProfitPrice,
+      BigDecimal stopLossPrice) {
+    requirePositive(marginAmount, "marginAmount");
+    requirePositive(leverage, "leverage");
 
     Order order = new Order();
     order.id = UUID.randomUUID();
-    order.userId = Objects.requireNonNull(userId, "userId is required");
+    order.tradingAccountId = Objects.requireNonNull(tradingAccountId, "tradingAccountId is required");
     order.symbol = requireText(symbol, "symbol").toUpperCase();
     order.side = Objects.requireNonNull(side, "side is required");
     order.type = Objects.requireNonNull(type, "type is required");
-    order.quantity = quantity;
+    order.marginAmount = marginAmount;
+    order.leverage = leverage;
+    order.notionalValue = marginAmount.multiply(leverage);
+    order.limitPrice = limitPrice;
+    order.takeProfitPrice = takeProfitPrice;
+    order.stopLossPrice = stopLossPrice;
     order.status = OrderStatus.PENDING;
-    order.brokerAccountId = Objects.requireNonNull(brokerAccountId, "brokerAccountId is required");
-    order.filledQuantity = BigDecimal.ZERO;
     order.createdAt = Instant.now();
     order.updatedAt = order.createdAt;
     return order;
   }
 
-  public void markSubmitted(String brokerOrderId, String brokerOrderStatus) {
-
+  public void markOpen() {
     if (this.status != OrderStatus.PENDING) {
-      throw new IllegalStateException(
-          "Only pending orders can be submitted");
+      throw new IllegalStateException("Only pending orders can be opened");
     }
 
-    this.status = OrderStatus.SUBMITTED;
-    this.brokerOrderId = requireText(brokerOrderId, "brokerOrderId");
-    this.brokerOrderStatus = requireText(brokerOrderStatus, "brokerOrderStatus");
-    this.submittedAt = Instant.now();
+    this.status = OrderStatus.OPEN;
+    this.openedAt = Instant.now();
     touch();
   }
 
-  public void markAccepted(String brokerOrderStatus) {
-    this.status = OrderStatus.ACCEPTED;
-    this.brokerOrderStatus = brokerOrderStatus;
-    touch();
-  }
+  public void markFilled(BigDecimal filledPrice) {
+    if (this.status != OrderStatus.PENDING && this.status != OrderStatus.OPEN) {
+      throw new IllegalStateException("Only pending or open orders can be filled");
+    }
 
-  public void markPartiallyFilled(BigDecimal filledQuantity, String brokerOrderStatus) {
-    requirePositive(filledQuantity, "filledQuantity");
-
-    this.status = OrderStatus.PARTIALLY_FILLED;
-    this.filledQuantity = filledQuantity;
-    this.brokerOrderStatus = brokerOrderStatus;
-    touch();
-  }
-
-  public void markFilled(BigDecimal filledQuantity, String brokerOrderStatus) {
-    requirePositive(filledQuantity, "filledQuantity");
+    requirePositive(filledPrice, "filledPrice");
 
     this.status = OrderStatus.FILLED;
-    this.filledQuantity = filledQuantity;
-    this.brokerOrderStatus = brokerOrderStatus;
+    this.filledPrice = filledPrice;
+    this.quantity = this.notionalValue.divide(filledPrice, QUANTITY_SCALE, RoundingMode.HALF_UP);
     this.filledAt = Instant.now();
     touch();
   }
 
-  public void markRejected(String rejectReason, String brokerOrderStatus) {
-    this.status = OrderStatus.REJECTED;
-    this.rejectReason = rejectReason;
-    this.brokerOrderStatus = brokerOrderStatus;
-    touch();
-  }
+  public void markCanceled() {
+    if (this.status == OrderStatus.FILLED || this.status == OrderStatus.REJECTED) {
+      throw new IllegalStateException("Filled or rejected orders cannot be canceled");
+    }
 
-  public void markCanceled(String brokerOrderStatus) {
     this.status = OrderStatus.CANCELED;
-    this.brokerOrderStatus = brokerOrderStatus;
     touch();
   }
 
-  public void markFailed(String rejectReason) {
-    this.status = OrderStatus.FAILED;
-    this.rejectReason = rejectReason;
+  public void markRejected(String rejectReason) {
+    if (this.status == OrderStatus.FILLED || this.status == OrderStatus.CANCELED) {
+      throw new IllegalStateException("Filled or canceled orders cannot be rejected");
+    }
+
+    this.status = OrderStatus.REJECTED;
+    this.rejectReason = requireText(rejectReason, "rejectReason");
     touch();
   }
 
@@ -210,12 +223,12 @@ public class Order {
     this.id = id;
   }
 
-  public UUID getUserId() {
-    return userId;
+  public UUID getTradingAccountId() {
+    return tradingAccountId;
   }
 
-  public void setUserId(UUID userId) {
-    this.userId = userId;
+  public void setTradingAccountId(UUID tradingAccountId) {
+    this.tradingAccountId = tradingAccountId;
   }
 
   public String getSymbol() {
@@ -250,20 +263,44 @@ public class Order {
     this.quantity = quantity;
   }
 
+  public BigDecimal getMarginAmount() {
+    return marginAmount;
+  }
+
+  public void setMarginAmount(BigDecimal marginAmount) {
+    this.marginAmount = marginAmount;
+  }
+
+  public BigDecimal getLeverage() {
+    return leverage;
+  }
+
+  public void setLeverage(BigDecimal leverage) {
+    this.leverage = leverage;
+  }
+
+  public BigDecimal getNotionalValue() {
+    return notionalValue;
+  }
+
+  public void setNotionalValue(BigDecimal notionalValue) {
+    this.notionalValue = notionalValue;
+  }
+
+  public BigDecimal getFilledPrice() {
+    return filledPrice;
+  }
+
+  public void setFilledPrice(BigDecimal filledPrice) {
+    this.filledPrice = filledPrice;
+  }
+
   public BigDecimal getLimitPrice() {
     return limitPrice;
   }
 
   public void setLimitPrice(BigDecimal limitPrice) {
     this.limitPrice = limitPrice;
-  }
-
-  public BigDecimal getStopPrice() {
-    return stopPrice;
-  }
-
-  public void setStopPrice(BigDecimal stopPrice) {
-    this.stopPrice = stopPrice;
   }
 
   public BigDecimal getTakeProfitPrice() {
@@ -290,38 +327,6 @@ public class Order {
     this.status = status;
   }
 
-  public String getBrokerOrderId() {
-    return brokerOrderId;
-  }
-
-  public void setBrokerOrderId(String brokerOrderId) {
-    this.brokerOrderId = brokerOrderId;
-  }
-
-  public UUID getBrokerAccountId() {
-    return brokerAccountId;
-  }
-
-  public void setBrokerAccountId(UUID brokerAccountId) {
-    this.brokerAccountId = brokerAccountId;
-  }
-
-  public String getBrokerOrderStatus() {
-    return brokerOrderStatus;
-  }
-
-  public void setBrokerOrderStatus(String brokerOrderStatus) {
-    this.brokerOrderStatus = brokerOrderStatus;
-  }
-
-  public BigDecimal getFilledQuantity() {
-    return filledQuantity;
-  }
-
-  public void setFilledQuantity(BigDecimal filledQuantity) {
-    this.filledQuantity = filledQuantity;
-  }
-
   public String getRejectReason() {
     return rejectReason;
   }
@@ -338,12 +343,12 @@ public class Order {
     this.createdAt = createdAt;
   }
 
-  public Instant getSubmittedAt() {
-    return submittedAt;
+  public Instant getOpenedAt() {
+    return openedAt;
   }
 
-  public void setSubmittedAt(Instant submittedAt) {
-    this.submittedAt = submittedAt;
+  public void setOpenedAt(Instant openedAt) {
+    this.openedAt = openedAt;
   }
 
   public Instant getFilledAt() {

@@ -1,10 +1,12 @@
 package com.jk.paper_trading_dashboard.alpaca;
 
+import java.util.List;
+
 import com.jk.paper_trading_dashboard.alpaca.dto.BrokerOrderRequest;
 import com.jk.paper_trading_dashboard.alpaca.dto.BrokerOrderResponse;
 
 public interface BrokerClient {
-    BrokerOrderResponse placeOrder(BrokerOrderRequest request);
-    BrokerOrderResponse getOrder(String brokerOrderId);
-    void cancelOrder(String brokerOrderId);
+    MarketPrice getLatestPrice(String symbol);
+
+    List<Candle> getCandles(...);
 }
