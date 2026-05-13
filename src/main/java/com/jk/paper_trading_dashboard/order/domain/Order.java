@@ -49,6 +49,9 @@ public class Order {
   @Column(nullable = false, precision = 19, scale = 8)
   private BigDecimal notionalValue;
 
+  @Column(nullable = false, precision = 19, scale = 8)
+  private BigDecimal feeAmount;
+
   @Column(precision = 19, scale = 8)
   private BigDecimal filledPrice;
 
@@ -145,6 +148,7 @@ public class Order {
     order.marginAmount = marginAmount;
     order.leverage = leverage;
     order.notionalValue = marginAmount.multiply(leverage);
+    order.feeAmount = BigDecimal.ZERO;
     order.limitPrice = limitPrice;
     order.takeProfitPrice = takeProfitPrice;
     order.stopLossPrice = stopLossPrice;
@@ -175,6 +179,15 @@ public class Order {
     this.filledPrice = filledPrice;
     this.quantity = this.notionalValue.divide(filledPrice, QUANTITY_SCALE, RoundingMode.HALF_UP);
     this.filledAt = Instant.now();
+    touch();
+  }
+
+  public void applyFee(BigDecimal feeAmount) {
+    if (feeAmount == null || feeAmount.signum() < 0) {
+      throw new IllegalArgumentException("feeAmount must be zero or greater");
+    }
+
+    this.feeAmount = feeAmount;
     touch();
   }
 
@@ -285,6 +298,14 @@ public class Order {
 
   public void setNotionalValue(BigDecimal notionalValue) {
     this.notionalValue = notionalValue;
+  }
+
+  public BigDecimal getFeeAmount() {
+    return feeAmount;
+  }
+
+  public void setFeeAmount(BigDecimal feeAmount) {
+    this.feeAmount = feeAmount;
   }
 
   public BigDecimal getFilledPrice() {

@@ -26,6 +26,7 @@ CREATE TABLE orders (
   margin_amount NUMERIC(19, 8) NOT NULL,
   leverage NUMERIC(10, 2) NOT NULL,
   notional_value NUMERIC(19, 8) NOT NULL,
+  fee_amount NUMERIC(19, 8) NOT NULL,
   filled_price NUMERIC(19, 8),
   limit_price NUMERIC(19, 8),
   take_profit_price NUMERIC(19, 8),

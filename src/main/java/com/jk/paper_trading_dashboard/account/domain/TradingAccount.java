@@ -100,6 +100,19 @@ public class TradingAccount {
     this.updatedAt = Instant.now();
   }
 
+  public void deductFee(BigDecimal feeAmount) {
+    if (feeAmount == null || feeAmount.signum() < 0) {
+      throw new IllegalArgumentException("feeAmount must be zero or greater");
+    }
+
+    if (cashBalance.compareTo(feeAmount) < 0) {
+      throw new IllegalArgumentException("Insufficient cash balance for fee");
+    }
+
+    this.cashBalance = this.cashBalance.subtract(feeAmount);
+    this.updatedAt = Instant.now();
+  }
+
   public void releaseMargin(BigDecimal marginAmount) {
     if (marginAmount == null || marginAmount.signum() <= 0) {
       throw new IllegalArgumentException("marginAmount must be greater than zero");
@@ -120,7 +133,7 @@ public class TradingAccount {
     this.updatedAt = Instant.now();
   }
 
-  public void applyPositionClose(BigDecimal realizedPnl, BigDecimal releasedMargin) {
+  public void applyPositionClose(BigDecimal realizedPnl, BigDecimal releasedMargin, BigDecimal closedUnrealizedPnl) {
     if (realizedPnl == null) {
       throw new IllegalArgumentException("realizedPnl is required");
     }
@@ -129,13 +142,17 @@ public class TradingAccount {
       throw new IllegalArgumentException("releasedMargin must be zero or greater");
     }
 
+    if (closedUnrealizedPnl == null) {
+      throw new IllegalArgumentException("closedUnrealizedPnl is required");
+    }
+
     this.cashBalance = this.cashBalance.add(releasedMargin).add(realizedPnl);
     this.reservedMargin = this.reservedMargin.subtract(releasedMargin);
     if (this.reservedMargin.signum() < 0) {
       this.reservedMargin = BigDecimal.ZERO;
     }
     this.realizedPnl = this.realizedPnl.add(realizedPnl);
-    this.unrealizedPnl = this.unrealizedPnl.subtract(realizedPnl);
+    this.unrealizedPnl = this.unrealizedPnl.subtract(closedUnrealizedPnl);
     this.updatedAt = Instant.now();
   }
 

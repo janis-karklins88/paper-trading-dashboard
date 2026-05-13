@@ -1,6 +1,7 @@
 package com.jk.paper_trading_dashboard.order.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +28,12 @@ import jakarta.transaction.Transactional;
 
 @Service
 public class OrderService {
+
+  private static final BigDecimal MARKET_FEE_RATE = new BigDecimal("0.0005");
+  private static final BigDecimal LIMIT_FEE_RATE = new BigDecimal("0.0001");
+  private static final BigDecimal SPREAD_RATE = new BigDecimal("0.0010");
+  private static final BigDecimal TWO = new BigDecimal("2");
+  private static final int MONEY_SCALE = 8;
 
   private final OrderRepository orderRepository;
   private final TradingAccountService tradingAccountService;
@@ -69,11 +76,16 @@ public class OrderService {
     reserveMargin(account, request.marginAmount());
 
     BigDecimal marketPrice = getMarketPrice(request.symbol());
-    order.markFilled(marketPrice);
+    BigDecimal executionPrice = applySpread(marketPrice, request.side());
+    order.markFilled(executionPrice);
+
+    BigDecimal feeAmount = calculateFee(order, MARKET_FEE_RATE);
+    order.applyFee(feeAmount);
+    account.deductFee(feeAmount);
 
     Position position = positionService.createPositionForAccount(
         account.getId(),
-        createPositionRequest(request, order, marketPrice));
+        createPositionRequest(request, order, marketPrice, executionPrice));
     account.applyPositionOpen(position.getUnrealizedPnl());
 
     orderRepository.save(order);
@@ -95,6 +107,10 @@ public class OrderService {
         request.stopLossPrice());
 
     reserveMargin(account, request.marginAmount());
+    BigDecimal feeAmount = calculateFee(order, LIMIT_FEE_RATE);
+    order.applyFee(feeAmount);
+    account.deductFee(feeAmount);
+
     order.markOpen();
     orderRepository.save(order);
 
@@ -107,6 +123,16 @@ public class OrderService {
     if (request.limitPrice() != null) {
       throw new InvalidOrderException("Market order cannot have limit price");
     }
+
+    BigDecimal estimatedFee = request.marginAmount()
+        .multiply(request.leverage())
+        .multiply(MARKET_FEE_RATE)
+        .setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+    BigDecimal requiredCash = request.marginAmount().add(estimatedFee);
+
+    if (account.getCashBalance().compareTo(requiredCash) < 0) {
+      throw new InvalidOrderException("Insufficient cash balance for margin and fee");
+    }
   }
 
   private void validateLimitOrder(TradingAccount account, PlaceOrderRequest request) {
@@ -114,6 +140,16 @@ public class OrderService {
 
     if (request.limitPrice() == null) {
       throw new InvalidOrderException("Limit order requires limit price");
+    }
+
+    BigDecimal estimatedFee = request.marginAmount()
+        .multiply(request.leverage())
+        .multiply(LIMIT_FEE_RATE)
+        .setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+    BigDecimal requiredCash = request.marginAmount().add(estimatedFee);
+
+    if (account.getCashBalance().compareTo(requiredCash) < 0) {
+      throw new InvalidOrderException("Insufficient cash balance for margin and fee");
     }
   }
 
@@ -144,15 +180,30 @@ public class OrderService {
   private CreatePositionRequest createPositionRequest(
       PlaceOrderRequest request,
       Order order,
-      BigDecimal marketPrice) {
+      BigDecimal marketPrice,
+      BigDecimal executionPrice) {
     return new CreatePositionRequest(
         request.symbol(),
         positionSide(request.side()),
         order.getQuantity(),
-        marketPrice,
+        executionPrice,
         marketPrice,
         request.marginAmount(),
         request.leverage());
+  }
+
+  private BigDecimal applySpread(BigDecimal marketPrice, OrderSide side) {
+    BigDecimal halfSpreadRate = SPREAD_RATE.divide(TWO, MONEY_SCALE, RoundingMode.HALF_UP);
+    BigDecimal multiplier = switch (side) {
+      case BUY -> BigDecimal.ONE.add(halfSpreadRate);
+      case SELL -> BigDecimal.ONE.subtract(halfSpreadRate);
+    };
+
+    return marketPrice.multiply(multiplier).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal calculateFee(Order order, BigDecimal feeRate) {
+    return order.getNotionalValue().multiply(feeRate).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
   }
 
   private PositionSide positionSide(OrderSide orderSide) {

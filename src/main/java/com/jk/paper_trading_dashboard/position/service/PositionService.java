@@ -1,6 +1,7 @@
 package com.jk.paper_trading_dashboard.position.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -8,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
+import com.jk.paper_trading_dashboard.alpaca.MarketDataClient;
+import com.jk.paper_trading_dashboard.alpaca.MarketPrice;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
@@ -25,17 +28,25 @@ import jakarta.transaction.Transactional;
 @Service
 public class PositionService {
 
+  private static final BigDecimal MARKET_FEE_RATE = new BigDecimal("0.0005");
+  private static final BigDecimal SPREAD_RATE = new BigDecimal("0.0010");
+  private static final BigDecimal TWO = new BigDecimal("2");
+  private static final int MONEY_SCALE = 8;
+
   private final PositionRepository positionRepository;
   private final OrderRepository orderRepository;
   private final TradingAccountService tradingAccountService;
+  private final MarketDataClient marketDataClient;
 
   public PositionService(
       PositionRepository positionRepository,
       OrderRepository orderRepository,
-      TradingAccountService tradingAccountService) {
+      TradingAccountService tradingAccountService,
+      MarketDataClient marketDataClient) {
     this.positionRepository = positionRepository;
     this.orderRepository = orderRepository;
     this.tradingAccountService = tradingAccountService;
+    this.marketDataClient = marketDataClient;
   }
 
   @Transactional
@@ -92,19 +103,29 @@ public class PositionService {
       throw new BadRequestException("Only open positions can be closed");
     }
 
+    BigDecimal marketPrice = getMarketPrice(position.getSymbol());
+    BigDecimal executionPrice = applySpread(marketPrice, closingSide(position.getSide()));
+
     Order closingOrder = Order.pendingMarketOrder(
         account.getId(),
         position.getSymbol(),
         closingSide(position.getSide()),
-        closingMarginAmount(position),
+        closingMarginAmount(position, executionPrice),
         position.getLeverage(),
         null,
         null);
-    closingOrder.markFilled(position.getCurrentPrice());
+
+    closingOrder.markFilled(executionPrice);
+
+    BigDecimal feeAmount = calculateFee(closingOrder);
+    closingOrder.applyFee(feeAmount);
     orderRepository.save(closingOrder);
 
+    BigDecimal closedUnrealizedPnl = position.getUnrealizedPnl();
+    position.setCurrentPrice(executionPrice);
     BigDecimal realizedPnl = position.close();
-    account.applyPositionClose(realizedPnl, position.getMarginUsed());
+    account.applyPositionClose(realizedPnl, position.getMarginUsed(), closedUnrealizedPnl);
+    account.deductFee(feeAmount);
 
     return PositionResponse.from(position);
   }
@@ -116,10 +137,34 @@ public class PositionService {
     };
   }
 
-  private BigDecimal closingMarginAmount(Position position) {
+  private BigDecimal closingMarginAmount(Position position, BigDecimal executionPrice) {
     return position.getQuantity()
-        .multiply(position.getCurrentPrice())
-        .divide(position.getLeverage(), 8, java.math.RoundingMode.HALF_UP);
+        .multiply(executionPrice)
+        .divide(position.getLeverage(), MONEY_SCALE, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal getMarketPrice(String symbol) {
+    MarketPrice marketPrice = marketDataClient.getLatestPrice(symbol);
+
+    if (marketPrice == null || marketPrice.price() == null || marketPrice.price().signum() <= 0) {
+      throw new BadRequestException("Market price is unavailable");
+    }
+
+    return marketPrice.price();
+  }
+
+  private BigDecimal applySpread(BigDecimal marketPrice, OrderSide side) {
+    BigDecimal halfSpreadRate = SPREAD_RATE.divide(TWO, MONEY_SCALE, RoundingMode.HALF_UP);
+    BigDecimal multiplier = switch (side) {
+      case BUY -> BigDecimal.ONE.add(halfSpreadRate);
+      case SELL -> BigDecimal.ONE.subtract(halfSpreadRate);
+    };
+
+    return marketPrice.multiply(multiplier).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal calculateFee(Order order) {
+    return order.getNotionalValue().multiply(MARKET_FEE_RATE).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
   }
 
   private UUID getTradingAccountId(UUID userId) {
