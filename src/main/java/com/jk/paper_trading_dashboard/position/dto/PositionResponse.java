@@ -10,17 +10,16 @@ import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 
 public record PositionResponse(
     UUID id,
-    UUID tradingAccountId,
     String symbol,
     PositionSide side,
+    PositionStatus status,
     BigDecimal quantity,
     BigDecimal avgEntryPrice,
     BigDecimal currentPrice,
-    BigDecimal marginUsed,
-    BigDecimal leverage,
     BigDecimal unrealizedPnl,
     BigDecimal realizedPnl,
-    PositionStatus status,
+    BigDecimal marginUsed,
+    BigDecimal leverage,
     Instant openedAt,
     Instant closedAt,
     Instant updatedAt) {
@@ -28,17 +27,16 @@ public record PositionResponse(
   public static PositionResponse from(Position position) {
     return new PositionResponse(
         position.getId(),
-        position.getTradingAccountId(),
         position.getSymbol(),
         position.getSide(),
+        position.getStatus(),
         position.getQuantity(),
         position.getAvgEntryPrice(),
         position.getCurrentPrice(),
-        position.getMarginUsed(),
-        position.getLeverage(),
         position.getUnrealizedPnl(),
         position.getRealizedPnl(),
-        position.getStatus(),
+        position.getMarginUsed(),
+        position.getLeverage(),
         position.getOpenedAt(),
         position.getClosedAt(),
         position.getUpdatedAt());

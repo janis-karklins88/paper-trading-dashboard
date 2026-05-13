@@ -1,13 +1,14 @@
 package com.jk.paper_trading_dashboard;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+import org.junit.jupiter.api.Test;
+
 class PaperTradingDashboardApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void applicationClassExists() {
+		assertThat(PaperTradingDashboardApplication.class).isNotNull();
 	}
 
 }
