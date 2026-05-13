@@ -49,3 +49,26 @@ CREATE TABLE orders (
 );
 
 CREATE INDEX ix_orders_trading_account_id ON orders (trading_account_id);
+
+CREATE TABLE positions (
+  id UUID PRIMARY KEY,
+  trading_account_id UUID NOT NULL,
+  symbol VARCHAR(255) NOT NULL,
+  side VARCHAR(10) NOT NULL,
+  quantity NUMERIC(19, 8) NOT NULL,
+  avg_entry_price NUMERIC(19, 8) NOT NULL,
+  current_price NUMERIC(19, 8) NOT NULL,
+  margin_used NUMERIC(19, 8) NOT NULL,
+  leverage NUMERIC(10, 2) NOT NULL,
+  unrealized_pnl NUMERIC(19, 8) NOT NULL,
+  realized_pnl NUMERIC(19, 8) NOT NULL,
+  status VARCHAR(30) NOT NULL,
+  opened_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+  closed_at TIMESTAMP(6) WITH TIME ZONE,
+  updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+  CONSTRAINT fk_positions_trading_account FOREIGN KEY (trading_account_id) REFERENCES trading_accounts (id),
+  CONSTRAINT ck_positions_side CHECK (side IN ('LONG', 'SHORT')),
+  CONSTRAINT ck_positions_status CHECK (status IN ('OPEN', 'CLOSED', 'LIQUIDATED'))
+);
+
+CREATE INDEX ix_positions_trading_account_id ON positions (trading_account_id);
