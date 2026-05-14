@@ -12,7 +12,7 @@ import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
 import com.jk.paper_trading_dashboard.shared.security.UserPrincipal;
 
 @RestController
-@RequestMapping("/api/trading-account")
+@RequestMapping("/trading-account")
 public class TradingAccountController {
 
   private final TradingAccountService tradingAccountService;
