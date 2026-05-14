@@ -70,7 +70,7 @@ public class PositionService {
 
     return positions
         .stream()
-        .map(PositionResponse::from)
+        .map(this::toLiveResponse)
         .toList();
   }
 
@@ -80,7 +80,7 @@ public class PositionService {
     Position position = positionRepository.findByIdAndTradingAccountId(positionId, tradingAccountId)
         .orElseThrow(() -> new NotFoundException("Position not found"));
 
-    return PositionResponse.from(position);
+    return toLiveResponse(position);
   }
 
   @Transactional
@@ -142,6 +142,19 @@ public class PositionService {
     }
 
     return marketPrice.price();
+  }
+
+  private PositionResponse toLiveResponse(Position position) {
+    if (position.getStatus() != PositionStatus.OPEN) {
+      return PositionResponse.from(position);
+    }
+
+    return marketPriceService.getCachedPrice(position.getSymbol())
+        .map(marketPrice -> PositionResponse.from(
+            position,
+            marketPrice.price(),
+            position.calculateUnrealizedPnl(marketPrice.price())))
+        .orElseGet(() -> PositionResponse.from(position));
   }
 
   private BigDecimal applySpread(BigDecimal marketPrice, OrderSide side) {

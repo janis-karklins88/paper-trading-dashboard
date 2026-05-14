@@ -111,11 +111,17 @@ public class Position {
     return closingPnl;
   }
 
-  private BigDecimal calculateUnrealizedPnl() {
+  public BigDecimal calculateUnrealizedPnl(BigDecimal currentPrice) {
+    requirePositive(currentPrice, "currentPrice");
+
     return switch (side) {
       case LONG -> currentPrice.subtract(avgEntryPrice).multiply(quantity);
       case SHORT -> avgEntryPrice.subtract(currentPrice).multiply(quantity);
     };
+  }
+
+  private BigDecimal calculateUnrealizedPnl() {
+    return calculateUnrealizedPnl(currentPrice);
   }
 
   private static String requireText(String value, String fieldName) {

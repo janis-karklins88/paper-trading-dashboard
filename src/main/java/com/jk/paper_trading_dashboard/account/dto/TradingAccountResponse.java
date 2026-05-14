@@ -13,11 +13,19 @@ public record TradingAccountResponse(
     BigDecimal maxLeverage) {
 
   public static TradingAccountResponse from(TradingAccount account) {
+    return from(account, account.getUnrealizedPnl());
+  }
+
+  public static TradingAccountResponse from(TradingAccount account, BigDecimal unrealizedPnl) {
+    BigDecimal equity = account.getCashBalance()
+        .add(account.getReservedMargin())
+        .add(unrealizedPnl);
+
     return new TradingAccountResponse(
         account.getCashBalance(),
         account.getReservedMargin(),
-        account.getEquity(),
-        account.getUnrealizedPnl(),
+        equity,
+        unrealizedPnl,
         account.getRealizedPnl(),
         account.getMaxLeverage());
   }

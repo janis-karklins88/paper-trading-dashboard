@@ -25,6 +25,10 @@ public record PositionResponse(
     Instant updatedAt) {
 
   public static PositionResponse from(Position position) {
+    return from(position, position.getCurrentPrice(), position.getUnrealizedPnl());
+  }
+
+  public static PositionResponse from(Position position, BigDecimal currentPrice, BigDecimal unrealizedPnl) {
     return new PositionResponse(
         position.getId(),
         position.getSymbol(),
@@ -32,8 +36,8 @@ public record PositionResponse(
         position.getStatus(),
         position.getQuantity(),
         position.getAvgEntryPrice(),
-        position.getCurrentPrice(),
-        position.getUnrealizedPnl(),
+        currentPrice,
+        unrealizedPnl,
         position.getRealizedPnl(),
         position.getMarginUsed(),
         position.getLeverage(),

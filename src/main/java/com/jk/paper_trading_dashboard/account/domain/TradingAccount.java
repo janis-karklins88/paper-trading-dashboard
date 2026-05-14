@@ -158,6 +158,7 @@ public class TradingAccount {
 
   public BigDecimal getEquity() {
     return cashBalance
+        .add(reservedMargin)
         .add(unrealizedPnl);
   }
 
