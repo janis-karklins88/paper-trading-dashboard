@@ -19,16 +19,14 @@ import com.jk.paper_trading_dashboard.order.service.OrderService;
 import com.jk.paper_trading_dashboard.shared.security.UserPrincipal;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/orders")
+@RequiredArgsConstructor
 public class OrderController {
 
   private final OrderService orderService;
-
-  public OrderController(OrderService orderService) {
-    this.orderService = orderService;
-  }
 
   @PostMapping
   public ResponseEntity<OrderResponse> placeOrder(

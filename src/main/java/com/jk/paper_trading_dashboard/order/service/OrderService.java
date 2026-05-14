@@ -9,8 +9,8 @@ import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketDataClient;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
@@ -25,8 +25,10 @@ import com.jk.paper_trading_dashboard.position.service.PositionService;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class OrderService {
 
   private static final BigDecimal MARKET_FEE_RATE = new BigDecimal("0.0005");
@@ -38,18 +40,7 @@ public class OrderService {
   private final OrderRepository orderRepository;
   private final TradingAccountService tradingAccountService;
   private final PositionService positionService;
-  private final MarketDataClient marketDataClient;
-
-  public OrderService(
-      OrderRepository orderRepository,
-      TradingAccountService tradingAccountService,
-      PositionService positionService,
-      MarketDataClient marketDataClient) {
-    this.orderRepository = orderRepository;
-    this.tradingAccountService = tradingAccountService;
-    this.positionService = positionService;
-    this.marketDataClient = marketDataClient;
-  }
+  private final MarketPriceService marketPriceService;
 
   @Transactional
   public OrderResponse placeOrder(UUID userId, PlaceOrderRequest request) {
@@ -168,7 +159,7 @@ public class OrderService {
   }
 
   private BigDecimal getMarketPrice(String symbol) {
-    MarketPrice marketPrice = marketDataClient.getLatestPrice(symbol);
+    MarketPrice marketPrice = marketPriceService.refreshPrice(symbol);
 
     if (marketPrice == null || marketPrice.price() == null || marketPrice.price().signum() <= 0) {
       throw new InvalidOrderException("Market price is unavailable");

@@ -18,8 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketDataClient;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
@@ -44,7 +44,7 @@ class PositionServiceTest {
   private TradingAccountService tradingAccountService;
 
   @Mock
-  private MarketDataClient marketDataClient;
+  private MarketPriceService marketPriceService;
 
   private PositionService positionService;
   private TradingAccount account;
@@ -56,7 +56,7 @@ class PositionServiceTest {
         positionRepository,
         orderRepository,
         tradingAccountService,
-        marketDataClient);
+        marketPriceService);
     account = new TradingAccount(new User("test@example.com", "hash"));
     account.reserveMargin(new BigDecimal("1000"));
     userId = UUID.randomUUID();
@@ -78,7 +78,7 @@ class PositionServiceTest {
         new BigDecimal("5"));
     when(positionRepository.findByIdAndTradingAccountId(positionId, account.getId()))
         .thenReturn(Optional.of(position));
-    when(marketDataClient.getLatestPrice("TSLA")).thenReturn(new MarketPrice("TSLA", new BigDecimal("255")));
+    when(marketPriceService.refreshPrice("TSLA")).thenReturn(new MarketPrice("TSLA", new BigDecimal("255")));
 
     PositionResponse response = positionService.closePosition(userId, positionId);
 

@@ -17,15 +17,14 @@ import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
 import com.jk.paper_trading_dashboard.shared.security.UserPrincipal;
 
+import lombok.RequiredArgsConstructor;
+
 @RestController
 @RequestMapping("/positions")
+@RequiredArgsConstructor
 public class PositionController {
 
   private final PositionService positionService;
-
-  public PositionController(PositionService positionService) {
-    this.positionService = positionService;
-  }
 
   @GetMapping
   public ResponseEntity<List<PositionResponse>> getPositions(

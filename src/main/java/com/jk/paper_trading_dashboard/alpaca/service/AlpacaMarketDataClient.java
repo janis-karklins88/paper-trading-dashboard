@@ -6,8 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import com.jk.paper_trading_dashboard.alpaca.config.AlpacaProperties;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketDataClient;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.MarketDataClient;
+import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 
 @Service
 public class AlpacaMarketDataClient implements MarketDataClient {

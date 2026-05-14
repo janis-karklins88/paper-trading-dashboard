@@ -11,15 +11,14 @@ import com.jk.paper_trading_dashboard.account.dto.TradingAccountResponse;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
 import com.jk.paper_trading_dashboard.shared.security.UserPrincipal;
 
+import lombok.RequiredArgsConstructor;
+
 @RestController
 @RequestMapping("/trading-account")
+@RequiredArgsConstructor
 public class TradingAccountController {
 
   private final TradingAccountService tradingAccountService;
-
-  public TradingAccountController(TradingAccountService tradingAccountService) {
-    this.tradingAccountService = tradingAccountService;
-  }
 
   @GetMapping
   public ResponseEntity<TradingAccountResponse> getTradingAccount(@AuthenticationPrincipal UserPrincipal user) {

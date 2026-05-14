@@ -18,8 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketDataClient;
-import com.jk.paper_trading_dashboard.alpaca.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
@@ -46,7 +46,7 @@ class OrderServiceTest {
   private PositionService positionService;
 
   @Mock
-  private MarketDataClient marketDataClient;
+  private MarketPriceService marketPriceService;
 
   private OrderService orderService;
   private TradingAccount account;
@@ -54,7 +54,7 @@ class OrderServiceTest {
 
   @BeforeEach
   void setUp() {
-    orderService = new OrderService(orderRepository, tradingAccountService, positionService, marketDataClient);
+    orderService = new OrderService(orderRepository, tradingAccountService, positionService, marketPriceService);
     account = new TradingAccount(new User("test@example.com", "hash"));
     userId = UUID.randomUUID();
     when(tradingAccountService.getActiveAccount(userId)).thenReturn(account);
@@ -72,7 +72,7 @@ class OrderServiceTest {
         null,
         new BigDecimal("300"),
         new BigDecimal("220"));
-    when(marketDataClient.getLatestPrice("TSLA")).thenReturn(new MarketPrice("TSLA", new BigDecimal("250")));
+    when(marketPriceService.refreshPrice("TSLA")).thenReturn(new MarketPrice("TSLA", new BigDecimal("250")));
     when(positionService.createPositionForAccount(any(), any(CreatePositionRequest.class)))
         .thenAnswer(invocation -> {
           UUID tradingAccountId = invocation.getArgument(0);
@@ -125,6 +125,6 @@ class OrderServiceTest {
     assertThat(account.getReservedMargin()).isEqualByComparingTo("1000");
 
     verify(positionService, never()).createPositionForAccount(any(), any());
-    verify(marketDataClient, never()).getLatestPrice(any());
+    verify(marketPriceService, never()).refreshPrice(any());
   }
 }

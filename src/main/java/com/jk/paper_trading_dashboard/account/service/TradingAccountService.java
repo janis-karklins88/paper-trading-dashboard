@@ -19,8 +19,10 @@ import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 import com.jk.paper_trading_dashboard.user.domain.User;
 
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class TradingAccountService {
 
   private static final List<OrderStatus> OPEN_ORDER_STATUSES = List.of(
@@ -30,15 +32,6 @@ public class TradingAccountService {
   private final TradingAccountRepository tradingAccountRepository;
   private final OrderRepository orderRepository;
   private final PositionRepository positionRepository;
-
-  public TradingAccountService(
-      TradingAccountRepository tradingAccountRepository,
-      OrderRepository orderRepository,
-      PositionRepository positionRepository) {
-    this.tradingAccountRepository = tradingAccountRepository;
-    this.orderRepository = orderRepository;
-    this.positionRepository = positionRepository;
-  }
 
   @Transactional
   public TradingAccount createForUser(User user) {

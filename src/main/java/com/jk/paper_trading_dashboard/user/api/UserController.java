@@ -17,15 +17,13 @@ import com.jk.paper_trading_dashboard.user.api.dto.UserResponse;
 import com.jk.paper_trading_dashboard.user.service.UserService;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
   private final UserService userService;
-
-  public UserController(UserService userService) {
-    this.userService = userService;
-  }
 
   @PostMapping("/register")
   public ResponseEntity<AuthResponse> registerUser(

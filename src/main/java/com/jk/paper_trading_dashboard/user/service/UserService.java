@@ -15,24 +15,15 @@ import com.jk.paper_trading_dashboard.user.domain.User;
 import com.jk.paper_trading_dashboard.user.repository.UserRepository;
 
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
   private final UserRepository userRepo;
   private final TradingAccountService tradingAccountService;
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
-
-  public UserService(
-      UserRepository userRepo,
-      TradingAccountService tradingAccountService,
-      PasswordEncoder passwordEncoder,
-      JwtService jwtService) {
-    this.userRepo = userRepo;
-    this.tradingAccountService = tradingAccountService;
-    this.passwordEncoder = passwordEncoder;
-    this.jwtService = jwtService;
-  }
 
   @Transactional
   public String saveUser(UserRegistrationRequest request) {

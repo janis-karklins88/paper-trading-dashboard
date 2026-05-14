@@ -19,22 +19,15 @@ import com.jk.paper_trading_dashboard.position.service.PositionService;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class LimitOrderExecutionService {
 
   private final OrderRepository orderRepository;
   private final TradingAccountRepository tradingAccountRepository;
   private final PositionService positionService;
-
-  public LimitOrderExecutionService(
-      OrderRepository orderRepository,
-      TradingAccountRepository tradingAccountRepository,
-      PositionService positionService) {
-    this.orderRepository = orderRepository;
-    this.tradingAccountRepository = tradingAccountRepository;
-    this.positionService = positionService;
-  }
 
   @Transactional
   public void executeLimitOrder(UUID orderId, BigDecimal marketPrice) {

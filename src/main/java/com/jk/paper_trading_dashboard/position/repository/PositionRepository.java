@@ -1,5 +1,6 @@
 package com.jk.paper_trading_dashboard.position.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,4 +19,6 @@ public interface PositionRepository extends JpaRepository<Position, UUID> {
   Optional<Position> findByIdAndTradingAccountId(UUID id, UUID tradingAccountId);
 
   boolean existsByTradingAccountIdAndStatus(UUID tradingAccountId, PositionStatus status);
+
+  List<Position> findByStatus(PositionStatus open);
 }
