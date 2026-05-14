@@ -1,11 +1,13 @@
-package com.jk.paper_trading_dashboard.alpaca;
+package com.jk.paper_trading_dashboard.alpaca.domain;
 
 import java.math.BigDecimal;
 import java.util.Map;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 @Service
+@Primary
 public class FakeMarketDataClient implements MarketDataClient {
 
   private static final Map<String, BigDecimal> PRICES = Map.of(

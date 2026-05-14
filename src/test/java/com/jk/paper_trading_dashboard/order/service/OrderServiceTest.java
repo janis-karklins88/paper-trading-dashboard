@@ -18,8 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
-import com.jk.paper_trading_dashboard.alpaca.MarketDataClient;
-import com.jk.paper_trading_dashboard.alpaca.MarketPrice;
+import com.jk.paper_trading_dashboard.alpaca.domain.MarketDataClient;
+import com.jk.paper_trading_dashboard.alpaca.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
