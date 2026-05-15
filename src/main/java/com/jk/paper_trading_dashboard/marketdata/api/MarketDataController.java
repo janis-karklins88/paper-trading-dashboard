@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.jk.paper_trading_dashboard.marketdata.domain.Candle;
 import com.jk.paper_trading_dashboard.marketdata.domain.CandleTimeFrame;
+import com.jk.paper_trading_dashboard.marketdata.domain.DefaultCryptoSymbol;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.service.DefaultMarketSymbolService;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class MarketDataController {
 
   private final MarketPriceService marketPriceService;
+  private final DefaultMarketSymbolService defaultMarketSymbolService;
 
   @GetMapping("/latest-price")
   public ResponseEntity<MarketPrice> getLatestPrice(@RequestParam String symbol) {
@@ -30,5 +33,10 @@ public class MarketDataController {
   @GetMapping("/candles")
   public ResponseEntity<List<Candle>> getCandles(@RequestParam String symbol, @RequestParam String timeframe) {
     return ResponseEntity.ok(marketPriceService.getCandles(symbol, CandleTimeFrame.fromValue(timeframe)));
+  }
+
+  @GetMapping("/defaults/crypto")
+  public ResponseEntity<List<DefaultCryptoSymbol>> getDefaultCryptoSymbols() {
+    return ResponseEntity.ok(defaultMarketSymbolService.getTopCryptoSymbols());
   }
 }
