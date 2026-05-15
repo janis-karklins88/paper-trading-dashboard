@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
 import com.jk.paper_trading_dashboard.order.domain.OrderType;
@@ -45,23 +46,15 @@ public class MarketPriceUpdater {
     positionRepository.findByStatus(PositionStatus.OPEN)
         .stream()
         .map(Position::getSymbol)
-        .map(this::normalizeSymbol)
+        .map(Symbols::normalize)
         .forEach(symbols::add);
 
     orderRepository.findByStatusAndType(OrderStatus.OPEN, OrderType.LIMIT)
         .stream()
         .map(Order::getSymbol)
-        .map(this::normalizeSymbol)
+        .map(Symbols::normalize)
         .forEach(symbols::add);
 
     return symbols;
-  }
-
-  private String normalizeSymbol(String symbol) {
-    if (symbol == null || symbol.isBlank()) {
-      throw new IllegalArgumentException("symbol is required");
-    }
-
-    return symbol.trim().toUpperCase();
   }
 }

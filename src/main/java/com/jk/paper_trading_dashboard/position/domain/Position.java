@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -83,7 +85,7 @@ public class Position {
 
     this.id = UUID.randomUUID();
     this.tradingAccountId = Objects.requireNonNull(tradingAccountId, "tradingAccountId is required");
-    this.symbol = requireText(symbol, "symbol").toUpperCase();
+    this.symbol = Symbols.normalize(symbol);
     this.side = Objects.requireNonNull(side, "side is required");
     this.quantity = quantity;
     this.avgEntryPrice = avgEntryPrice;

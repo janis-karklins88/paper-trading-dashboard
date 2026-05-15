@@ -8,6 +8,7 @@ import org.springframework.web.client.RestClient;
 import com.jk.paper_trading_dashboard.alpaca.config.AlpacaProperties;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketDataClient;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 
 @Service
 public class AlpacaMarketDataClient implements MarketDataClient {
@@ -24,7 +25,7 @@ public class AlpacaMarketDataClient implements MarketDataClient {
 
   @Override
   public MarketPrice getLatestPrice(String symbol) {
-    String normalizedSymbol = normalizeSymbol(symbol);
+    String normalizedSymbol = Symbols.normalize(symbol);
 
     LatestTradeResponse response = restClient.get()
         .uri(uriBuilder -> uriBuilder
@@ -38,14 +39,6 @@ public class AlpacaMarketDataClient implements MarketDataClient {
     }
 
     return new MarketPrice(normalizedSymbol, response.trade().p());
-  }
-
-  private String normalizeSymbol(String symbol) {
-    if (symbol == null || symbol.isBlank()) {
-      throw new IllegalArgumentException("symbol is required");
-    }
-
-    return symbol.trim().toUpperCase();
   }
 
   private record LatestTradeResponse(

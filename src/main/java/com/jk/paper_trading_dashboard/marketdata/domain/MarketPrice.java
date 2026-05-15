@@ -14,12 +14,8 @@ public record MarketPrice(
   }
 
   public MarketPrice {
-    if (symbol == null || symbol.isBlank()) {
-      throw new IllegalArgumentException("symbol is required");
-    }
-
     Objects.requireNonNull(price, "price is required");
-    symbol = symbol.trim().toUpperCase();
+    symbol = Symbols.normalize(symbol);
     updatedAt = updatedAt == null ? Instant.now() : updatedAt;
   }
 

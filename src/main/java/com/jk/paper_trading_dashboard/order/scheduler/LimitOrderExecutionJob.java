@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
@@ -67,7 +68,7 @@ public class LimitOrderExecutionJob {
 
   private String normalizeOrderSymbol(Order order) {
     try {
-      return normalizeSymbol(order.getSymbol());
+      return Symbols.normalize(order.getSymbol());
     } catch (IllegalArgumentException e) {
       log.warn("Skipping limit order {} with invalid symbol", order.getId(), e);
       return null;
@@ -105,14 +106,6 @@ public class LimitOrderExecutionJob {
       case BUY -> marketPrice.price().compareTo(order.getLimitPrice()) <= 0;
       case SELL -> marketPrice.price().compareTo(order.getLimitPrice()) >= 0;
     };
-  }
-
-  private String normalizeSymbol(String symbol) {
-    if (symbol == null || symbol.isBlank()) {
-      throw new IllegalArgumentException("symbol is required");
-    }
-
-    return symbol.trim().toUpperCase();
   }
 
 }

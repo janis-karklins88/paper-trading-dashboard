@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -142,7 +144,7 @@ public class Order {
     Order order = new Order();
     order.id = UUID.randomUUID();
     order.tradingAccountId = Objects.requireNonNull(tradingAccountId, "tradingAccountId is required");
-    order.symbol = requireText(symbol, "symbol").toUpperCase();
+    order.symbol = Symbols.normalize(symbol);
     order.side = Objects.requireNonNull(side, "side is required");
     order.type = Objects.requireNonNull(type, "type is required");
     order.marginAmount = marginAmount;
