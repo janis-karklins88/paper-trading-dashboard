@@ -126,14 +126,6 @@ public class Position {
     return calculateUnrealizedPnl(currentPrice);
   }
 
-  private static String requireText(String value, String fieldName) {
-    if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException(fieldName + " is required");
-    }
-
-    return value.trim();
-  }
-
   private static void requirePositive(BigDecimal value, String fieldName) {
     if (value == null || value.signum() <= 0) {
       throw new IllegalArgumentException(fieldName + " must be greater than zero");
