@@ -1,9 +1,12 @@
 package com.jk.paper_trading_dashboard.marketdata.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.jk.paper_trading_dashboard.marketdata.domain.Candle;
+import com.jk.paper_trading_dashboard.marketdata.domain.CandleTimeFrame;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketDataClient;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 
@@ -33,5 +36,9 @@ public class MarketPriceService {
 
     priceCacheService.put(marketPrice);
     return marketPrice;
+  }
+
+  public List<Candle> getCandles(String symbol, CandleTimeFrame timeframe) {
+    return marketDataClient.getCandles(symbol, timeframe);
   }
 }
