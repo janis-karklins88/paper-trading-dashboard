@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -34,9 +35,14 @@ public class AlpacaMarketDataClient implements MarketDataClient {
   public MarketPrice getLatestPrice(String symbol) {
     String normalizedSymbol = Symbols.normalize(symbol);
 
+    if (isCryptoPair(normalizedSymbol)) {
+      return getLatestCryptoPrice(normalizedSymbol);
+    }
+
     LatestTradeResponse response = restClient.get()
         .uri(uriBuilder -> uriBuilder
             .path("/v2/stocks/{symbol}/trades/latest")
+            .queryParam("feed", "iex")
             .build(normalizedSymbol))
         .retrieve()
         .body(LatestTradeResponse.class);
@@ -51,6 +57,11 @@ public class AlpacaMarketDataClient implements MarketDataClient {
   @Override
   public List<Candle> getCandles(String symbol, CandleTimeFrame timeframe) {
     String normalizedSymbol = Symbols.normalize(symbol);
+
+    if (isCryptoPair(normalizedSymbol)) {
+      return getCryptoCandles(normalizedSymbol, timeframe);
+    }
+
     Instant end = Instant.now();
     Instant start = end.minus(defaultLookback(timeframe));
 
@@ -62,6 +73,7 @@ public class AlpacaMarketDataClient implements MarketDataClient {
             .queryParam("end", end)
             .queryParam("limit", CANDLE_LIMIT)
             .queryParam("adjustment", "raw")
+            .queryParam("feed", "iex")
             .queryParam("sort", "asc")
             .build(normalizedSymbol))
         .retrieve()
@@ -77,9 +89,77 @@ public class AlpacaMarketDataClient implements MarketDataClient {
         .toList();
   }
 
+  private MarketPrice getLatestCryptoPrice(String symbol) {
+    CryptoLatestTradesResponse response = restClient.get()
+        .uri(uriBuilder -> uriBuilder
+            .path("/v1beta3/crypto/us/latest/trades")
+            .queryParam("symbols", symbol)
+            .build())
+        .retrieve()
+        .body(CryptoLatestTradesResponse.class);
+
+    LatestTrade trade = response == null || response.trades() == null ? null : response.trades().get(symbol);
+
+    if (trade == null || trade.p() == null) {
+      throw new IllegalStateException("Latest crypto trade price is missing for symbol " + symbol);
+    }
+
+    return new MarketPrice(symbol, trade.p());
+  }
+
+  private List<Candle> getCryptoCandles(String symbol, CandleTimeFrame timeframe) {
+    Instant end = Instant.now();
+    Instant start = end.minus(defaultLookback(timeframe));
+
+    CryptoBarsResponse response = restClient.get()
+        .uri(uriBuilder -> uriBuilder
+            .path("/v1beta3/crypto/us/bars")
+            .queryParam("symbols", symbol)
+            .queryParam("timeframe", timeframe.getAlpacaValue())
+            .queryParam("start", start)
+            .queryParam("end", end)
+            .queryParam("limit", CANDLE_LIMIT)
+            .queryParam("sort", "asc")
+            .build())
+        .retrieve()
+        .body(CryptoBarsResponse.class);
+
+    List<AlpacaBar> bars = response == null || response.bars() == null ? null : getBarsForSymbol(response.bars(), symbol);
+
+    if (bars == null) {
+      return List.of();
+    }
+
+    return bars
+        .stream()
+        .map(AlpacaBar::toCandle)
+        .toList();
+  }
+
+  private List<AlpacaBar> getBarsForSymbol(Map<String, List<AlpacaBar>> barsBySymbol, String symbol) {
+    List<AlpacaBar> bars = barsBySymbol.get(symbol);
+
+    if (bars != null) {
+      return bars;
+    }
+
+    String symbolWithoutSeparator = symbol.replace("/", "");
+    return barsBySymbol.entrySet()
+        .stream()
+        .filter(entry -> entry.getKey().equalsIgnoreCase(symbol)
+            || entry.getKey().replace("/", "").equalsIgnoreCase(symbolWithoutSeparator))
+        .map(Map.Entry::getValue)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private boolean isCryptoPair(String symbol) {
+    return symbol.contains("/");
+  }
+
   private Duration defaultLookback(CandleTimeFrame timeframe) {
     return switch (timeframe) {
-      case ONE_MINUTE -> Duration.ofDays(1);
+      case ONE_MINUTE -> Duration.ofDays(5);
       case FIVE_MINUTES -> Duration.ofDays(5);
       case FIFTEEN_MINUTES -> Duration.ofDays(15);
       case ONE_HOUR -> Duration.ofDays(60);
@@ -100,6 +180,16 @@ public class AlpacaMarketDataClient implements MarketDataClient {
 
   private record BarsResponse(
       List<AlpacaBar> bars) {
+
+  }
+
+  private record CryptoLatestTradesResponse(
+      Map<String, LatestTrade> trades) {
+
+  }
+
+  private record CryptoBarsResponse(
+      Map<String, List<AlpacaBar>> bars) {
 
   }
 

@@ -1,20 +1,307 @@
+import {
+  CandlestickSeries,
+  ColorType,
+  createChart,
+  type CandlestickData,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from 'lightweight-charts'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  getCandles,
+  getDefaultStockSymbols,
+  type CandleTimeframe,
+  type DefaultMarketSymbol,
+  type MarketCandle,
+} from '../api/marketDataApi'
+
+const timeframes: Array<{ label: string; value: CandleTimeframe }> = [
+  { label: '1m', value: '1m' },
+  { label: '5m', value: '5m' },
+  { label: '15m', value: '15m' },
+  { label: '1h', value: '1h' },
+  { label: '1d', value: '1d' },
+]
+
+const TEMP_CHART_REFRESH_MS = 15_000
+
 export function TradingChart() {
+  const chartContainerRef = useRef<HTMLDivElement | null>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+
+  const [symbols, setSymbols] = useState<DefaultMarketSymbol[]>([])
+  const [selectedSymbol, setSelectedSymbol] = useState('')
+  const [timeframe, setTimeframe] = useState<CandleTimeframe>('1m')
+  const [candles, setCandles] = useState<MarketCandle[]>([])
+  const [loadedCandleKey, setLoadedCandleKey] = useState('')
+  const [isLoadingSymbols, setIsLoadingSymbols] = useState(true)
+  const [error, setError] = useState('')
+
+  const candleKey = selectedSymbol ? `${selectedSymbol}:${timeframe}` : ''
+  const isLoadingCandles = Boolean(candleKey && loadedCandleKey !== candleKey)
+
+  const selectedAsset = useMemo(
+    () => symbols.find((symbol) => symbol.quoteSymbol === selectedSymbol),
+    [selectedSymbol, symbols],
+  )
+
+  useEffect(() => {
+    let isMounted = true
+
+    getDefaultStockSymbols()
+      .then((defaultSymbols) => {
+        if (!isMounted) {
+          return
+        }
+
+        setSymbols(defaultSymbols)
+        setSelectedSymbol(defaultSymbols[0]?.quoteSymbol ?? '')
+      })
+      .catch(() => {
+        if (isMounted) {
+          setError('Failed to load available symbols')
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingSymbols(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const container = chartContainerRef.current
+
+    if (!container) {
+      return
+    }
+
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: 360,
+      layout: {
+        background: { type: ColorType.Solid, color: '#0b1322' },
+        textColor: '#9db2d0',
+      },
+      grid: {
+        vertLines: { color: '#1e293b' },
+        horzLines: { color: '#1e293b' },
+      },
+      rightPriceScale: {
+        borderColor: '#21304a',
+      },
+      timeScale: {
+        borderColor: '#21304a',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      crosshair: {
+        horzLine: { color: '#7592ff' },
+        vertLine: { color: '#7592ff' },
+      },
+    })
+
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: '#00d084',
+      downColor: '#ff5367',
+      borderUpColor: '#00d084',
+      borderDownColor: '#ff5367',
+      wickUpColor: '#00d084',
+      wickDownColor: '#ff5367',
+    })
+
+    chartRef.current = chart
+    seriesRef.current = series
+
+    const resizeChart = () => {
+      chart.resize(container.clientWidth, container.clientHeight || 360)
+    }
+
+    requestAnimationFrame(resizeChart)
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      chart.resize(
+        Math.floor(entry.contentRect.width),
+        Math.floor(entry.contentRect.height) || 360,
+      )
+    })
+
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+      chart.remove()
+      chartRef.current = null
+      seriesRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedSymbol) {
+      return
+    }
+
+    let isMounted = true
+    const requestKey = `${selectedSymbol}:${timeframe}`
+
+    getCandles(selectedSymbol, timeframe)
+      .then((nextCandles) => {
+        if (isMounted) {
+          setCandles(nextCandles)
+          setLoadedCandleKey(requestKey)
+          setError('')
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCandles([])
+          setLoadedCandleKey(requestKey)
+          setError('Failed to load candles')
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedSymbol, timeframe])
+
+  useEffect(() => {
+    if (!selectedSymbol) {
+      return
+    }
+
+    // Temporary polling until market-data websocket streaming is added.
+    const intervalId = window.setInterval(() => {
+      const requestKey = `${selectedSymbol}:${timeframe}`
+
+      getCandles(selectedSymbol, timeframe)
+        .then((nextCandles) => {
+          setCandles(nextCandles)
+          setLoadedCandleKey(requestKey)
+          setError('')
+        })
+        .catch(() => {
+          setLoadedCandleKey(requestKey)
+          setError('Failed to refresh candles')
+        })
+    }, TEMP_CHART_REFRESH_MS)
+
+    return () => window.clearInterval(intervalId)
+  }, [selectedSymbol, timeframe])
+
+  useEffect(() => {
+    if (!seriesRef.current) {
+      return
+    }
+
+    const chartData = candles
+      .map(toChartCandle)
+      .filter((candle) => isValidChartCandle(candle))
+      .sort((left, right) => Number(left.time) - Number(right.time))
+
+    seriesRef.current.setData(chartData)
+    chartRef.current?.timeScale().fitContent()
+  }, [candles])
+
   return (
-    <section className="min-h-100 rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)]">
-      <div className="mb-5 flex items-start justify-between gap-4">
+    <section className="rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)]">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="mb-1 text-xl font-bold">Trading chart</h2>
-          <p className="text-sm text-[#9db2d0]">Chart placeholder</p>
+          <p className="text-sm text-[#9db2d0]">
+            {selectedAsset
+              ? `${selectedAsset.name} - ${selectedAsset.quoteSymbol}`
+              : 'Select an asset'}
+          </p>
         </div>
-        <span className="rounded-md bg-[#0f1727] px-3 py-1.5 text-sm font-semibold text-[#a9c7ff]">
-          AAPL
-        </span>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <select
+            className="min-h-10 rounded-md border border-[#21304a] bg-[#0f1727] px-3 text-sm font-semibold text-[#eef4ff] outline-none"
+            disabled={isLoadingSymbols || symbols.length === 0}
+            onChange={(event) => setSelectedSymbol(event.target.value)}
+            value={selectedSymbol}
+          >
+            {symbols.map((symbol) => (
+              <option key={symbol.quoteSymbol} value={symbol.quoteSymbol}>
+                {symbol.symbol} - {symbol.name}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex rounded-md border border-[#21304a] bg-[#0f1727] p-1">
+            {timeframes.map((item) => (
+              <button
+                className={[
+                  'min-h-8 rounded px-3 text-sm font-semibold transition',
+                  timeframe === item.value
+                    ? 'bg-[#18234d] text-[#7592ff]'
+                    : 'text-[#9db2d0] hover:text-white',
+                ].join(' ')}
+                key={item.value}
+                onClick={() => setTimeframe(item.value)}
+                type="button"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="relative min-h-72 overflow-hidden rounded-md border border-[#1e293b] bg-[#0b1322]">
-        <div className="absolute inset-0 bg-[linear-gradient(#1e293b_1px,transparent_1px),linear-gradient(90deg,#1e293b_1px,transparent_1px)] bg-size-[100%_56px,72px_100%] opacity-60" />
-        <div className="absolute right-6 bottom-10 left-6 h-32 border-b-2 border-[#4c66ff] opacity-90 [clip-path:polygon(0_72%,10%_58%,18%_64%,30%_28%,42%_42%,52%_22%,62%_48%,74%_36%,86%_62%,100%_44%,100%_50%,86%_68%,74%_42%,62%_54%,52%_28%,42%_48%,30%_34%,18%_70%,10%_64%,0_78%)]" />
+      <div className="mb-3 flex items-center justify-between text-xs font-semibold text-[#9db2d0]">
+        <span>{selectedSymbol || 'No symbol selected'}</span>
+        <span>{candles.length} candles</span>
+      </div>
+
+      <div className="relative overflow-hidden rounded-md border border-[#1e293b] bg-[#0b1322]">
+        <div ref={chartContainerRef} className="h-90 w-full" />
+
+        {(isLoadingSymbols || isLoadingCandles) && (
+          <div className="absolute inset-0 grid place-items-center bg-[#0b1322]/70 text-sm font-semibold text-[#9db2d0]">
+            Loading chart
+          </div>
+        )}
+
+        {!isLoadingCandles && !error && selectedSymbol && candles.length === 0 && (
+          <div className="absolute inset-0 grid place-items-center bg-[#0b1322]/70 text-sm font-semibold text-[#9db2d0]">
+            No candle data available
+          </div>
+        )}
+
+        {error && (
+          <div className="absolute inset-0 grid place-items-center bg-[#0b1322]/80 px-6 text-center text-sm font-semibold text-[#ffdce1]">
+            {error}
+          </div>
+        )}
       </div>
     </section>
   )
 }
+
+function toChartCandle(candle: MarketCandle): CandlestickData<UTCTimestamp> {
+  return {
+    time: Math.floor(new Date(candle.timestamp).getTime() / 1000) as UTCTimestamp,
+    open: Number(candle.open),
+    high: Number(candle.high),
+    low: Number(candle.low),
+    close: Number(candle.close),
+  }
+}
+
+function isValidChartCandle(candle: CandlestickData<UTCTimestamp>) {
+  return (
+    Number.isFinite(Number(candle.time)) &&
+    Number.isFinite(candle.open) &&
+    Number.isFinite(candle.high) &&
+    Number.isFinite(candle.low) &&
+    Number.isFinite(candle.close)
+  )
+}
+

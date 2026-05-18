@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.jk.paper_trading_dashboard.marketdata.domain.Candle;
 import com.jk.paper_trading_dashboard.marketdata.domain.CandleTimeFrame;
 import com.jk.paper_trading_dashboard.marketdata.domain.DefaultCryptoSymbol;
+import com.jk.paper_trading_dashboard.marketdata.domain.DefaultMarketSymbol;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.service.DefaultMarketSymbolService;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
@@ -38,5 +39,10 @@ public class MarketDataController {
   @GetMapping("/defaults/crypto")
   public ResponseEntity<List<DefaultCryptoSymbol>> getDefaultCryptoSymbols() {
     return ResponseEntity.ok(defaultMarketSymbolService.getTopCryptoSymbols());
+  }
+
+  @GetMapping("/defaults/stocks")
+  public ResponseEntity<List<DefaultMarketSymbol>> getDefaultStockSymbols() {
+    return ResponseEntity.ok(defaultMarketSymbolService.getPopularStockSymbols());
   }
 }

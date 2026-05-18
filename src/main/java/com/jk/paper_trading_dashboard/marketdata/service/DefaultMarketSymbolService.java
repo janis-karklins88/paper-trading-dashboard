@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.marketdata.domain.DefaultCryptoSymbol;
+import com.jk.paper_trading_dashboard.marketdata.domain.DefaultMarketSymbol;
 
 @Service
 public class DefaultMarketSymbolService {
@@ -31,7 +32,23 @@ public class DefaultMarketSymbolService {
       new DefaultCryptoSymbol(19, "AVAX", "Avalanche", "AVAX/USD"),
       new DefaultCryptoSymbol(20, "HBAR", "Hedera", "HBAR/USD"));
 
+  private static final List<DefaultMarketSymbol> POPULAR_STOCK_SYMBOLS = List.of(
+      new DefaultMarketSymbol(1, "AAPL", "Apple, Inc", "AAPL"),
+      new DefaultMarketSymbol(2, "MSFT", "Microsoft Corporation", "MSFT"),
+      new DefaultMarketSymbol(3, "NVDA", "NVIDIA Corporation", "NVDA"),
+      new DefaultMarketSymbol(4, "TSLA", "Tesla, Inc", "TSLA"),
+      new DefaultMarketSymbol(5, "AMZN", "Amazon.com, Inc", "AMZN"),
+      new DefaultMarketSymbol(6, "META", "Meta Platforms, Inc", "META"),
+      new DefaultMarketSymbol(7, "GOOGL", "Alphabet Inc", "GOOGL"),
+      new DefaultMarketSymbol(8, "AMD", "Advanced Micro Devices, Inc", "AMD"),
+      new DefaultMarketSymbol(9, "NFLX", "Netflix, Inc", "NFLX"),
+      new DefaultMarketSymbol(10, "COIN", "Coinbase Global, Inc", "COIN"));
+
   public List<DefaultCryptoSymbol> getTopCryptoSymbols() {
     return TOP_CRYPTO_SYMBOLS;
+  }
+
+  public List<DefaultMarketSymbol> getPopularStockSymbols() {
+    return POPULAR_STOCK_SYMBOLS;
   }
 }
