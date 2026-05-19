@@ -16,6 +16,7 @@ import {
   type DefaultMarketSymbol,
   type MarketCandle,
 } from '../api/marketDataApi'
+import { formatPrice } from '../../../utils/formatters'
 
 const timeframes: Array<{ label: string; value: CandleTimeframe }> = [
   { label: '1m', value: '1m' },
@@ -80,6 +81,7 @@ export function TradingChart({
       },
       localization: {
         timeFormatter: (time: Time) => formatTooltipTime(time),
+        priceFormatter: (price: number) => formatPrice(price),
       },
       crosshair: {
         horzLine: { color: '#7592ff' },
@@ -194,7 +196,7 @@ export function TradingChart({
   }, [candleKey, candles])
 
   return (
-    <section className="rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)]">
+    <section className="rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)] flex h-full flex-col">
       <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           
@@ -228,8 +230,8 @@ export function TradingChart({
 
       
 
-      <div className="relative overflow-hidden rounded-md border border-[#1e293b] bg-[#0b1322]">
-        <div ref={chartContainerRef} className="h-90 w-full" />
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-md border border-[#1e293b] bg-[#0b1322]">
+        <div ref={chartContainerRef} className="h-full w-full" />
 
         {isLoadingCandles && (
           <div className="absolute inset-0 grid place-items-center bg-[#0b1322]/70 text-sm font-semibold text-[#9db2d0]">
@@ -343,4 +345,3 @@ function toDate(time: Time) {
 
   return new Date(Date.UTC(time.year, time.month - 1, time.day))
 }
-

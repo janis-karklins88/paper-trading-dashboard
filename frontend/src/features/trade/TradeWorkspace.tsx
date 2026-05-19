@@ -55,7 +55,7 @@ export function TradeWorkspace() {
           <p className="mb-2 text-xs font-extrabold uppercase text-[#a9c7ff]">
             Order entry
           </p>
-          </div>
+        </div>
 
         <label className="grid gap-2 text-sm font-semibold text-[#dce8ff]">
           <select
@@ -80,13 +80,13 @@ export function TradeWorkspace() {
       )}
 
       <div className="grid gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-8">
+        <div className="min-w-0 xl:col-span-9">
           <TradingChart
             selectedAsset={selectedAsset}
             selectedSymbol={selectedSymbol}
           />
         </div>
-        <div className="xl:col-span-4">
+        <div className="min-w-0 xl:col-span-3">
           <TradeTicket
             selectedAsset={selectedAsset}
             selectedSymbol={selectedSymbol}
@@ -95,11 +95,12 @@ export function TradeWorkspace() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-12">
-        <div className="grid gap-4 xl:col-span-8">
-          <OrdersTable />
+        <div className="grid min-w-0 gap-4 xl:col-span-9">
           <PositionsTable />
+          <OrdersTable />
+          
         </div>
-        <div className="xl:col-span-4">
+        <div className="min-w-0 xl:col-span-3">
           <Watchlist />
         </div>
       </div>
