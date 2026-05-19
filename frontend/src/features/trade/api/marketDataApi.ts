@@ -18,6 +18,12 @@ export type MarketCandle = {
   volume: number | string
 }
 
+export type MarketPrice = {
+  symbol: string
+  price: number | string
+  updatedAt: string
+}
+
 export async function getDefaultCryptoSymbols() {
   return fetchJson<DefaultMarketSymbol[]>('/api/market-data/defaults/crypto')
 }
@@ -29,6 +35,11 @@ export async function getDefaultStockSymbols() {
 export async function getCandles(symbol: string, timeframe: CandleTimeframe) {
   const params = new URLSearchParams({ symbol, timeframe })
   return fetchJson<MarketCandle[]>(`/api/market-data/candles?${params}`)
+}
+
+export async function getLatestPrice(symbol: string) {
+  const params = new URLSearchParams({ symbol })
+  return fetchJson<MarketPrice>(`/api/market-data/latest-price?${params}`)
 }
 
 async function fetchJson<T>(url: string) {

@@ -74,7 +74,7 @@ public class AlpacaMarketDataClient implements MarketDataClient {
             .queryParam("limit", CANDLE_LIMIT)
             .queryParam("adjustment", "raw")
             .queryParam("feed", "iex")
-            .queryParam("sort", "asc")
+            .queryParam("sort", "desc")
             .build(normalizedSymbol))
         .retrieve()
         .body(BarsResponse.class);
@@ -83,10 +83,7 @@ public class AlpacaMarketDataClient implements MarketDataClient {
       return List.of();
     }
 
-    return response.bars()
-        .stream()
-        .map(AlpacaBar::toCandle)
-        .toList();
+    return toAscendingCandles(response.bars());
   }
 
   private MarketPrice getLatestCryptoPrice(String symbol) {
@@ -119,7 +116,7 @@ public class AlpacaMarketDataClient implements MarketDataClient {
             .queryParam("start", start)
             .queryParam("end", end)
             .queryParam("limit", CANDLE_LIMIT)
-            .queryParam("sort", "asc")
+            .queryParam("sort", "desc")
             .build())
         .retrieve()
         .body(CryptoBarsResponse.class);
@@ -130,7 +127,11 @@ public class AlpacaMarketDataClient implements MarketDataClient {
       return List.of();
     }
 
-    return bars
+    return toAscendingCandles(bars);
+  }
+
+  private List<Candle> toAscendingCandles(List<AlpacaBar> bars) {
+    return bars.reversed()
         .stream()
         .map(AlpacaBar::toCandle)
         .toList();

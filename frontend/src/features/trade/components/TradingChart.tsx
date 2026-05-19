@@ -1,16 +1,17 @@
 import {
   CandlestickSeries,
   ColorType,
+  TickMarkType,
   createChart,
   type CandlestickData,
   type IChartApi,
   type ISeriesApi,
+  type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   getCandles,
-  getDefaultStockSymbols,
   type CandleTimeframe,
   type DefaultMarketSymbol,
   type MarketCandle,
@@ -25,55 +26,29 @@ const timeframes: Array<{ label: string; value: CandleTimeframe }> = [
 ]
 
 const TEMP_CHART_REFRESH_MS = 15_000
+const CHART_TIME_ZONE = 'Europe/Riga'
 
-export function TradingChart() {
+type TradingChartProps = {
+  selectedAsset?: DefaultMarketSymbol
+  selectedSymbol: string
+}
+
+export function TradingChart({
+  selectedAsset,
+  selectedSymbol,
+}: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const previousCandleKeyRef = useRef('')
 
-  const [symbols, setSymbols] = useState<DefaultMarketSymbol[]>([])
-  const [selectedSymbol, setSelectedSymbol] = useState('')
   const [timeframe, setTimeframe] = useState<CandleTimeframe>('1m')
   const [candles, setCandles] = useState<MarketCandle[]>([])
   const [loadedCandleKey, setLoadedCandleKey] = useState('')
-  const [isLoadingSymbols, setIsLoadingSymbols] = useState(true)
   const [error, setError] = useState('')
 
   const candleKey = selectedSymbol ? `${selectedSymbol}:${timeframe}` : ''
   const isLoadingCandles = Boolean(candleKey && loadedCandleKey !== candleKey)
-
-  const selectedAsset = useMemo(
-    () => symbols.find((symbol) => symbol.quoteSymbol === selectedSymbol),
-    [selectedSymbol, symbols],
-  )
-
-  useEffect(() => {
-    let isMounted = true
-
-    getDefaultStockSymbols()
-      .then((defaultSymbols) => {
-        if (!isMounted) {
-          return
-        }
-
-        setSymbols(defaultSymbols)
-        setSelectedSymbol(defaultSymbols[0]?.quoteSymbol ?? '')
-      })
-      .catch(() => {
-        if (isMounted) {
-          setError('Failed to load available symbols')
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoadingSymbols(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   useEffect(() => {
     const container = chartContainerRef.current
@@ -100,6 +75,11 @@ export function TradingChart() {
         borderColor: '#21304a',
         timeVisible: true,
         secondsVisible: false,
+        tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) =>
+          formatAxisTime(time, tickMarkType),
+      },
+      localization: {
+        timeFormatter: (time: Time) => formatTooltipTime(time),
       },
       crosshair: {
         horzLine: { color: '#7592ff' },
@@ -206,14 +186,18 @@ export function TradingChart() {
       .sort((left, right) => Number(left.time) - Number(right.time))
 
     seriesRef.current.setData(chartData)
-    chartRef.current?.timeScale().fitContent()
-  }, [candles])
+
+    if (candleKey !== previousCandleKeyRef.current) {
+      chartRef.current?.timeScale().fitContent()
+      previousCandleKeyRef.current = candleKey
+    }
+  }, [candleKey, candles])
 
   return (
     <section className="rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)]">
       <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="mb-1 text-xl font-bold">Trading chart</h2>
+          
           <p className="text-sm text-[#9db2d0]">
             {selectedAsset
               ? `${selectedAsset.name} - ${selectedAsset.quoteSymbol}`
@@ -222,19 +206,6 @@ export function TradingChart() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <select
-            className="min-h-10 rounded-md border border-[#21304a] bg-[#0f1727] px-3 text-sm font-semibold text-[#eef4ff] outline-none"
-            disabled={isLoadingSymbols || symbols.length === 0}
-            onChange={(event) => setSelectedSymbol(event.target.value)}
-            value={selectedSymbol}
-          >
-            {symbols.map((symbol) => (
-              <option key={symbol.quoteSymbol} value={symbol.quoteSymbol}>
-                {symbol.symbol} - {symbol.name}
-              </option>
-            ))}
-          </select>
-
           <div className="flex rounded-md border border-[#21304a] bg-[#0f1727] p-1">
             {timeframes.map((item) => (
               <button
@@ -255,15 +226,12 @@ export function TradingChart() {
         </div>
       </div>
 
-      <div className="mb-3 flex items-center justify-between text-xs font-semibold text-[#9db2d0]">
-        <span>{selectedSymbol || 'No symbol selected'}</span>
-        <span>{candles.length} candles</span>
-      </div>
+      
 
       <div className="relative overflow-hidden rounded-md border border-[#1e293b] bg-[#0b1322]">
         <div ref={chartContainerRef} className="h-90 w-full" />
 
-        {(isLoadingSymbols || isLoadingCandles) && (
+        {isLoadingCandles && (
           <div className="absolute inset-0 grid place-items-center bg-[#0b1322]/70 text-sm font-semibold text-[#9db2d0]">
             Loading chart
           </div>
@@ -303,5 +271,76 @@ function isValidChartCandle(candle: CandlestickData<UTCTimestamp>) {
     Number.isFinite(candle.low) &&
     Number.isFinite(candle.close)
   )
+}
+
+function formatAxisTime(time: Time, tickMarkType: TickMarkType) {
+  const date = toDate(time)
+
+  if (!date) {
+    return null
+  }
+
+  if (
+    tickMarkType === TickMarkType.Time ||
+    tickMarkType === TickMarkType.TimeWithSeconds
+  ) {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: CHART_TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date)
+  }
+
+  if (tickMarkType === TickMarkType.DayOfMonth) {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: CHART_TIME_ZONE,
+      day: '2-digit',
+      month: 'short',
+    }).format(date)
+  }
+
+  if (tickMarkType === TickMarkType.Month) {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: CHART_TIME_ZONE,
+      month: 'short',
+      year: '2-digit',
+    }).format(date)
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: CHART_TIME_ZONE,
+    year: 'numeric',
+  }).format(date)
+}
+
+function formatTooltipTime(time: Time) {
+  const date = toDate(time)
+
+  if (!date) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: CHART_TIME_ZONE,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function toDate(time: Time) {
+  if (typeof time === 'number') {
+    return new Date(time * 1000)
+  }
+
+  if (typeof time === 'string') {
+    return new Date(time)
+  }
+
+  return new Date(Date.UTC(time.year, time.month - 1, time.day))
 }
 
