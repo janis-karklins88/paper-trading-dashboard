@@ -8,6 +8,7 @@ import {
 import { formatOptionalPrice } from '../../../utils/formatters'
 
 const POSITION_REFRESH_MS = 15_000
+const POSITION_PAGE_SIZE = 10
 
 type PositionsTableProps = {
   onPositionClosed?: () => void
@@ -15,38 +16,54 @@ type PositionsTableProps = {
 
 export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
   const [positions, setPositions] = useState<PositionResponse[]>([])
+  const [openPage, setOpenPage] = useState(0)
+  const [closedPage, setClosedPage] = useState(0)
+  const [openTotalPages, setOpenTotalPages] = useState(0)
+  const [closedTotalPages, setClosedTotalPages] = useState(0)
+  const [openTotalPositions, setOpenTotalPositions] = useState(0)
+  const [closedTotalPositions, setClosedTotalPositions] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [closingPositionId, setClosingPositionId] = useState('')
   const [error, setError] = useState('')
 
-  const loadPositions = useCallback(() => {
-    Promise.all([getOpenPositions(), getClosedPositions()])
-      .then(([openPositions, closedPositions]) => {
-        setPositions([
-          ...sortOpenPositions(openPositions),
-          ...sortClosedPositions(closedPositions),
-        ])
-        setError('')
-      })
-      .catch(() => {
-        setError('Failed to load positions')
-      })
-      .finally(() => {
-        setIsLoading(false)
-      })
-  }, [])
+  const loadPositionsForPages = useCallback(
+    async (nextOpenPage: number, nextClosedPage: number) => {
+      const [openPositions, closedPositions] = await Promise.all([
+        getOpenPositions(nextOpenPage, POSITION_PAGE_SIZE),
+        getClosedPositions(nextClosedPage, POSITION_PAGE_SIZE),
+      ])
+
+      setPositions([
+        ...sortOpenPositions(openPositions.content),
+        ...sortClosedPositions(closedPositions.content),
+      ])
+      setOpenTotalPages(openPositions.totalPages)
+      setClosedTotalPages(closedPositions.totalPages)
+      setOpenTotalPositions(openPositions.totalElements)
+      setClosedTotalPositions(closedPositions.totalElements)
+      setError('')
+    },
+    [],
+  )
 
   useEffect(() => {
     let isMounted = true
 
     const loadMountedPositions = () => {
-      Promise.all([getOpenPositions(), getClosedPositions()])
+      Promise.all([
+        getOpenPositions(openPage, POSITION_PAGE_SIZE),
+        getClosedPositions(closedPage, POSITION_PAGE_SIZE),
+      ])
         .then(([openPositions, closedPositions]) => {
           if (isMounted) {
             setPositions([
-              ...sortOpenPositions(openPositions),
-              ...sortClosedPositions(closedPositions),
+              ...sortOpenPositions(openPositions.content),
+              ...sortClosedPositions(closedPositions.content),
             ])
+            setOpenTotalPages(openPositions.totalPages)
+            setClosedTotalPages(closedPositions.totalPages)
+            setOpenTotalPositions(openPositions.totalElements)
+            setClosedTotalPositions(closedPositions.totalElements)
             setError('')
           }
         })
@@ -74,7 +91,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
       isMounted = false
       window.clearInterval(intervalId)
     }
-  }, [])
+  }, [closedPage, openPage])
 
   async function handleClosePosition(positionId: string) {
     setClosingPositionId(positionId)
@@ -82,7 +99,8 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
 
     try {
       await closePosition(positionId)
-      await loadPositions()
+      setClosedPage(0)
+      await loadPositionsForPages(openPage, 0)
       onPositionClosed?.()
     } catch (caughtError) {
       setError(
@@ -100,7 +118,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-xl font-bold">Positions</h2>
         <span className="text-xs font-semibold text-[#9db2d0]">
-          {openPositionCount(positions)} open / {closedPositionCount(positions)} closed
+          {openTotalPositions} open / {closedTotalPositions} closed
         </span>
       </div>
 
@@ -223,6 +241,35 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
           </div>
         )}
       </div>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <PaginationControls
+          currentPage={openPage}
+          label="Open"
+          onNext={() =>
+            setOpenPage((currentPage) =>
+              Math.min(currentPage + 1, Math.max(openTotalPages - 1, 0)),
+            )
+          }
+          onPrevious={() =>
+            setOpenPage((currentPage) => Math.max(currentPage - 1, 0))
+          }
+          totalPages={openTotalPages}
+        />
+        <PaginationControls
+          currentPage={closedPage}
+          label="Closed"
+          onNext={() =>
+            setClosedPage((currentPage) =>
+              Math.min(currentPage + 1, Math.max(closedTotalPages - 1, 0)),
+            )
+          }
+          onPrevious={() =>
+            setClosedPage((currentPage) => Math.max(currentPage - 1, 0))
+          }
+          totalPages={closedTotalPages}
+        />
+      </div>
     </section>
   )
 }
@@ -258,14 +305,6 @@ function sortClosedPositions(positions: PositionResponse[]) {
 
 function getTimeOrZero(value: string | null) {
   return value ? new Date(value).getTime() : 0
-}
-
-function openPositionCount(positions: PositionResponse[]) {
-  return positions.filter((position) => position.status === 'OPEN').length
-}
-
-function closedPositionCount(positions: PositionResponse[]) {
-  return positions.filter((position) => position.status === 'CLOSED').length
 }
 
 function formatEnumLabel(value: string) {
@@ -319,6 +358,52 @@ function formatDateTime(value: string | null) {
   }).format(date)
 }
 
+type PaginationControlsProps = {
+  currentPage: number
+  label: string
+  totalPages: number
+  onPrevious: () => void
+  onNext: () => void
+}
+
+function PaginationControls({
+  currentPage,
+  label,
+  totalPages,
+  onPrevious,
+  onNext,
+}: PaginationControlsProps) {
+  if (totalPages <= 1) {
+    return null
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-3 text-xs font-semibold text-[#9db2d0]">
+      <button
+        className={paginationButtonClass}
+        disabled={currentPage <= 0}
+        onClick={onPrevious}
+        type="button"
+      >
+        Previous
+      </button>
+      <span>
+        {label} {currentPage + 1} / {totalPages}
+      </span>
+      <button
+        className={paginationButtonClass}
+        disabled={currentPage >= totalPages - 1}
+        onClick={onNext}
+        type="button"
+      >
+        Next
+      </button>
+    </div>
+  )
+}
+
 const headerCellClass =
   'whitespace-nowrap px-4 py-3 text-xs font-extrabold uppercase'
 const bodyCellClass = 'whitespace-nowrap px-4 py-3 text-[#9db2d0]'
+const paginationButtonClass =
+  'min-h-8 rounded-md border border-[#21304a] bg-[#0f1727] px-3 text-[#dce8ff] transition hover:border-[#334666] hover:bg-[#131e31] disabled:cursor-not-allowed disabled:opacity-50'

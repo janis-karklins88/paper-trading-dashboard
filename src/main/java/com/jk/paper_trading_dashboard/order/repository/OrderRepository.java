@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.jk.paper_trading_dashboard.order.domain.Order;
@@ -14,6 +16,8 @@ import com.jk.paper_trading_dashboard.order.domain.OrderType;
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
   List<Order> findByTradingAccountIdOrderByCreatedAtDesc(UUID tradingAccountId);
+
+  Page<Order> findByTradingAccountIdOrderByCreatedAtDesc(UUID tradingAccountId, Pageable pageable);
 
   Optional<Order> findByIdAndTradingAccountId(UUID id, UUID tradingAccountId);
 

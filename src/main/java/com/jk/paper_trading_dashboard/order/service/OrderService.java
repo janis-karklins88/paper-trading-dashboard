@@ -5,6 +5,8 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
@@ -22,6 +24,7 @@ import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
+import com.jk.paper_trading_dashboard.shared.dto.PageResponse;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
 import jakarta.transaction.Transactional;
@@ -213,6 +216,14 @@ public class OrderService {
         .toList();
   }
 
+  public PageResponse<OrderResponse> getOrders(UUID userId, int page, int size) {
+    UUID tradingAccountId = getTradingAccountId(userId);
+    Pageable pageable = pageRequest(page, size);
+
+    return PageResponse.from(orderRepository.findByTradingAccountIdOrderByCreatedAtDesc(tradingAccountId, pageable)
+        .map(OrderResponse::from));
+  }
+
   public OrderResponse getOrder(UUID userId, UUID orderId) {
     Order order = getUserOrder(userId, orderId);
     return OrderResponse.from(order);
@@ -255,6 +266,13 @@ public class OrderService {
       case PENDING, OPEN -> true;
       case FILLED, REJECTED, CANCELED -> false;
     };
+  }
+
+  private Pageable pageRequest(int page, int size) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.min(Math.max(size, 1), 100);
+
+    return PageRequest.of(safePage, safeSize);
   }
 
 }

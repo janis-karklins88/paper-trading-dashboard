@@ -33,6 +33,16 @@ export type OrderResponse = {
   updatedAt: string
 }
 
+export type PageResponse<T> = {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}
+
 type ApiErrorResponse = {
   message?: string
 }
@@ -56,10 +66,10 @@ export async function placeOrder(payload: PlaceOrderPayload) {
   return (await response.json()) as OrderResponse
 }
 
-export async function getOrders() {
+export async function getOrders(page = 0, size = 25) {
   const token = getStoredAuthToken()
 
-  const response = await fetch('/api/orders', {
+  const response = await fetch(`/api/orders?page=${page}&size=${size}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -69,7 +79,7 @@ export async function getOrders() {
     throw new Error(await getErrorMessage(response))
   }
 
-  return (await response.json()) as OrderResponse[]
+  return (await response.json()) as PageResponse<OrderResponse>
 }
 
 export async function cancelOrder(orderId: string) {

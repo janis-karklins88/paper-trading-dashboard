@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { cancelOrder, getOrders, type OrderResponse } from '../api/orderApi'
 
 const ORDER_REFRESH_MS = 15_000
+const ORDER_PAGE_SIZE = 10
 
 type OrdersTableProps = {
   refreshKey?: number
@@ -9,14 +10,19 @@ type OrdersTableProps = {
 
 export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
   const [orders, setOrders] = useState<OrderResponse[]>([])
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalOrders, setTotalOrders] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [cancelingOrderId, setCancelingOrderId] = useState('')
   const [error, setError] = useState('')
 
   const loadOrders = useCallback(() => {
-    getOrders()
-      .then((nextOrders) => {
-        setOrders(nextOrders)
+    getOrders(page, ORDER_PAGE_SIZE)
+      .then((nextPage) => {
+        setOrders(nextPage.content)
+        setTotalPages(nextPage.totalPages)
+        setTotalOrders(nextPage.totalElements)
         setError('')
       })
       .catch(() => {
@@ -25,7 +31,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
       .finally(() => {
         setIsLoading(false)
       })
-  }, [])
+  }, [page])
 
   useEffect(() => {
     loadOrders()
@@ -67,7 +73,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-xl font-bold">Orders</h2>
         <span className="text-xs font-semibold text-[#9db2d0]">
-          {orders.length} total
+          {totalOrders} total
         </span>
       </div>
 
@@ -175,6 +181,20 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
           </div>
         )}
       </div>
+
+      <PaginationControls
+        className="mt-3"
+        currentPage={page}
+        onNext={() =>
+          setPage((currentPage) =>
+            Math.min(currentPage + 1, Math.max(totalPages - 1, 0)),
+          )
+        }
+        onPrevious={() =>
+          setPage((currentPage) => Math.max(currentPage - 1, 0))
+        }
+        totalPages={totalPages}
+      />
     </section>
   )
 }
@@ -259,3 +279,55 @@ function statusClass(status: string) {
 const headerCellClass =
   'whitespace-nowrap px-4 py-3 text-xs font-extrabold uppercase'
 const bodyCellClass = 'whitespace-nowrap px-4 py-3 text-[#9db2d0]'
+
+type PaginationControlsProps = {
+  className?: string
+  currentPage: number
+  totalPages: number
+  onPrevious: () => void
+  onNext: () => void
+}
+
+function PaginationControls({
+  className = '',
+  currentPage,
+  totalPages,
+  onPrevious,
+  onNext,
+}: PaginationControlsProps) {
+  if (totalPages <= 1) {
+    return null
+  }
+
+  return (
+    <div
+      className={[
+        'flex items-center justify-end gap-3 text-xs font-semibold text-[#9db2d0]',
+        className,
+      ].join(' ')}
+    >
+      <button
+        className={paginationButtonClass}
+        disabled={currentPage <= 0}
+        onClick={onPrevious}
+        type="button"
+      >
+        Previous
+      </button>
+      <span>
+        Page {currentPage + 1} / {totalPages}
+      </span>
+      <button
+        className={paginationButtonClass}
+        disabled={currentPage >= totalPages - 1}
+        onClick={onNext}
+        type="button"
+      >
+        Next
+      </button>
+    </div>
+  )
+}
+
+const paginationButtonClass =
+  'min-h-8 rounded-md border border-[#21304a] bg-[#0f1727] px-3 text-[#dce8ff] transition hover:border-[#334666] hover:bg-[#131e31] disabled:cursor-not-allowed disabled:opacity-50'

@@ -5,6 +5,8 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
@@ -20,6 +22,7 @@ import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
 import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
+import com.jk.paper_trading_dashboard.shared.dto.PageResponse;
 import com.jk.paper_trading_dashboard.shared.exception.BadRequestException;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
@@ -72,6 +75,26 @@ public class PositionService {
         .stream()
         .map(this::toLiveResponse)
         .toList();
+  }
+
+  public PageResponse<PositionResponse> getPositions(UUID userId, PositionStatus status, int page, int size) {
+    UUID tradingAccountId = getTradingAccountId(userId);
+    Pageable pageable = pageRequest(page, size);
+
+    if (status == null) {
+      return PageResponse.from(positionRepository.findByTradingAccountIdOrderByOpenedAtDesc(tradingAccountId, pageable)
+          .map(this::toLiveResponse));
+    }
+
+    if (status == PositionStatus.CLOSED) {
+      return PageResponse.from(positionRepository
+          .findByTradingAccountIdAndStatusOrderByClosedAtDesc(tradingAccountId, status, pageable)
+          .map(this::toLiveResponse));
+    }
+
+    return PageResponse.from(positionRepository
+        .findByTradingAccountIdAndStatusOrderByOpenedAtDesc(tradingAccountId, status, pageable)
+        .map(this::toLiveResponse));
   }
 
   public PositionResponse getPosition(UUID userId, UUID positionId) {
@@ -173,5 +196,12 @@ public class PositionService {
 
   private UUID getTradingAccountId(UUID userId) {
     return tradingAccountService.getActiveAccount(userId).getId();
+  }
+
+  private Pageable pageRequest(int page, int size) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.min(Math.max(size, 1), 100);
+
+    return PageRequest.of(safePage, safeSize);
   }
 }
