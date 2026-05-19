@@ -14,6 +14,7 @@ export function TradeWorkspace() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true)
   const [symbolError, setSymbolError] = useState('')
+  const [ordersRefreshKey, setOrdersRefreshKey] = useState(0)
 
   const selectedAsset = useMemo(
     () => symbols.find((symbol) => symbol.quoteSymbol === selectedSymbol),
@@ -96,9 +97,12 @@ export function TradeWorkspace() {
 
       <div className="grid gap-4 xl:grid-cols-12">
         <div className="grid min-w-0 gap-4 xl:col-span-9">
-          <PositionsTable />
-          <OrdersTable />
-          
+          <PositionsTable
+            onPositionClosed={() =>
+              setOrdersRefreshKey((currentKey) => currentKey + 1)
+            }
+          />
+          <OrdersTable refreshKey={ordersRefreshKey} />
         </div>
         <div className="min-w-0 xl:col-span-3">
           <Watchlist />

@@ -44,8 +44,8 @@ export function AppLayout() {
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-[#0b1322] text-[#f7fbff] md:grid-cols-[286px_minmax(0,1fr)]">
-      <aside className="flex flex-col border-b border-[#1e293b] bg-[#0b1220] p-4 md:sticky md:top-0 md:h-screen md:border-r md:border-b-0">
+    <div className="grid min-h-screen grid-cols-1 bg-[#0b1322] text-[#f7fbff] md:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="flex w-full flex-col border-b border-[#1e293b] bg-[#0b1220] p-4 md:sticky md:top-0 md:h-screen md:border-r md:border-b-0">
         <p className="mb-4.5 text-xs font-medium text-[#a8b3cf] uppercase">
           Menu
         </p>

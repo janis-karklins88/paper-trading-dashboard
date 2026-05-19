@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   closePosition,
+  getClosedPositions,
   getOpenPositions,
   type PositionResponse,
 } from '../api/positionApi'
@@ -8,16 +9,23 @@ import { formatOptionalPrice } from '../../../utils/formatters'
 
 const POSITION_REFRESH_MS = 15_000
 
-export function PositionsTable() {
+type PositionsTableProps = {
+  onPositionClosed?: () => void
+}
+
+export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
   const [positions, setPositions] = useState<PositionResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [closingPositionId, setClosingPositionId] = useState('')
   const [error, setError] = useState('')
 
-  const loadPositions = () =>
-    getOpenPositions()
-      .then((nextPositions) => {
-        setPositions(nextPositions)
+  const loadPositions = useCallback(() => {
+    Promise.all([getOpenPositions(), getClosedPositions()])
+      .then(([openPositions, closedPositions]) => {
+        setPositions([
+          ...sortOpenPositions(openPositions),
+          ...sortClosedPositions(closedPositions),
+        ])
         setError('')
       })
       .catch(() => {
@@ -26,15 +34,19 @@ export function PositionsTable() {
       .finally(() => {
         setIsLoading(false)
       })
+  }, [])
 
   useEffect(() => {
     let isMounted = true
 
     const loadMountedPositions = () => {
-      getOpenPositions()
-        .then((nextPositions) => {
+      Promise.all([getOpenPositions(), getClosedPositions()])
+        .then(([openPositions, closedPositions]) => {
           if (isMounted) {
-            setPositions(nextPositions)
+            setPositions([
+              ...sortOpenPositions(openPositions),
+              ...sortClosedPositions(closedPositions),
+            ])
             setError('')
           }
         })
@@ -71,6 +83,7 @@ export function PositionsTable() {
     try {
       await closePosition(positionId)
       await loadPositions()
+      onPositionClosed?.()
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -87,7 +100,7 @@ export function PositionsTable() {
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-xl font-bold">Positions</h2>
         <span className="text-xs font-semibold text-[#9db2d0]">
-          {positions.length} open
+          {openPositionCount(positions)} open / {closedPositionCount(positions)} closed
         </span>
       </div>
 
@@ -97,6 +110,7 @@ export function PositionsTable() {
             <tr>
               <th className={headerCellClass}>Symbol</th>
               <th className={headerCellClass}>Side</th>
+              <th className={headerCellClass}>Status</th>
               <th className={headerCellClass}>Entry price</th>
               <th className={headerCellClass}>Current price</th>
               <th className={headerCellClass}>TP</th>
@@ -108,7 +122,8 @@ export function PositionsTable() {
           </thead>
           <tbody>
             {positions.map((position) => {
-              const pnl = Number(position.unrealizedPnl)
+              const pnlValue = getPositionPnl(position)
+              const pnl = Number(pnlValue)
               const pnlPercent = calculatePnlPercent(position)
               const isClosing = closingPositionId === position.id
 
@@ -129,6 +144,18 @@ export function PositionsTable() {
                       {formatEnumLabel(position.side)}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={[
+                        'rounded-full px-2.5 py-1 text-xs font-bold',
+                        position.status === 'OPEN'
+                          ? 'bg-[#00d084]/12 text-[#00d084]'
+                          : 'bg-[#9db2d0]/12 text-[#9db2d0]',
+                      ].join(' ')}
+                    >
+                      {formatEnumLabel(position.status)}
+                    </span>
+                  </td>
                   <td className={bodyCellClass}>
                     {formatOptionalPrice(position.avgEntryPrice)}
                   </td>
@@ -143,7 +170,7 @@ export function PositionsTable() {
                       pnl >= 0 ? 'text-[#00d084]' : 'text-[#ff5367]',
                     ].join(' ')}
                   >
-                    {formatPnlMoney(position.unrealizedPnl)}
+                    {formatPnlMoney(pnlValue)}
                     <span className="ml-1 text-xs">
                       ({formatPercent(pnlPercent)})
                     </span>
@@ -152,14 +179,20 @@ export function PositionsTable() {
                     {formatDateTime(position.openedAt)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
-                    <button
-                      className="min-h-8 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-3 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isClosing}
-                      onClick={() => void handleClosePosition(position.id)}
-                      type="button"
-                    >
-                      {isClosing ? 'Closing' : 'Close'}
-                    </button>
+                    {position.status === 'OPEN' ? (
+                      <button
+                        className="min-h-8 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-3 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={isClosing}
+                        onClick={() => void handleClosePosition(position.id)}
+                        type="button"
+                      >
+                        {isClosing ? 'Closing' : 'Close'}
+                      </button>
+                    ) : (
+                      <span className="text-[#9db2d0]">
+                        {formatDateTime(position.closedAt)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               )
@@ -167,8 +200,11 @@ export function PositionsTable() {
 
             {!isLoading && positions.length === 0 && (
               <tr className="border-t border-[#1e293b]">
-                <td className="px-4 py-8 text-center text-[#9db2d0]" colSpan={9}>
-                  No open positions
+                <td
+                  className="px-4 py-8 text-center text-[#9db2d0]"
+                  colSpan={10}
+                >
+                  No positions yet
                 </td>
               </tr>
             )}
@@ -192,7 +228,7 @@ export function PositionsTable() {
 }
 
 function calculatePnlPercent(position: PositionResponse) {
-  const pnl = Number(position.unrealizedPnl)
+  const pnl = Number(getPositionPnl(position))
   const margin = Number(position.marginUsed)
 
   if (!Number.isFinite(pnl) || !Number.isFinite(margin) || margin <= 0) {
@@ -200,6 +236,36 @@ function calculatePnlPercent(position: PositionResponse) {
   }
 
   return (pnl / margin) * 100
+}
+
+function getPositionPnl(position: PositionResponse) {
+  return position.status === 'OPEN' ? position.unrealizedPnl : position.realizedPnl
+}
+
+function sortOpenPositions(positions: PositionResponse[]) {
+  return [...positions].sort(
+    (left, right) =>
+      new Date(right.openedAt).getTime() - new Date(left.openedAt).getTime(),
+  )
+}
+
+function sortClosedPositions(positions: PositionResponse[]) {
+  return [...positions].sort(
+    (left, right) =>
+      getTimeOrZero(right.closedAt) - getTimeOrZero(left.closedAt),
+  )
+}
+
+function getTimeOrZero(value: string | null) {
+  return value ? new Date(value).getTime() : 0
+}
+
+function openPositionCount(positions: PositionResponse[]) {
+  return positions.filter((position) => position.status === 'OPEN').length
+}
+
+function closedPositionCount(positions: PositionResponse[]) {
+  return positions.filter((position) => position.status === 'CLOSED').length
 }
 
 function formatEnumLabel(value: string) {

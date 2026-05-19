@@ -17,14 +17,16 @@ export type PositionResponse = {
   updatedAt: string
 }
 
+export type PositionStatus = 'OPEN' | 'CLOSED'
+
 type ApiErrorResponse = {
   message?: string
 }
 
-export async function getOpenPositions() {
+export async function getPositions(status: PositionStatus) {
   const token = getStoredAuthToken()
 
-  const response = await fetch('/api/positions?status=OPEN', {
+  const response = await fetch(`/api/positions?status=${status}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -35,6 +37,14 @@ export async function getOpenPositions() {
   }
 
   return (await response.json()) as PositionResponse[]
+}
+
+export async function getOpenPositions() {
+  return getPositions('OPEN')
+}
+
+export async function getClosedPositions() {
+  return getPositions('CLOSED')
 }
 
 export async function closePosition(positionId: string) {

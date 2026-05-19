@@ -6,6 +6,10 @@ import {
   type MarketPrice,
 } from '../api/marketDataApi'
 import { placeOrder, type OrderResponse } from '../api/orderApi'
+import {
+  getTradingAccount,
+  type TradingAccountResponse,
+} from '../api/accountApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
 
 type TradeTicketProps = {
@@ -17,6 +21,7 @@ type OrderSide = 'buy' | 'sell'
 type OrderType = 'market' | 'limit'
 
 const TEMP_PRICE_REFRESH_MS = 15_000
+const TEMP_ACCOUNT_REFRESH_MS = 15_000
 
 export function TradeTicket({
   selectedAsset,
@@ -28,6 +33,8 @@ export function TradeTicket({
   const [leverage, setLeverage] = useState('1')
   const [limitPrice, setLimitPrice] = useState('')
   const [latestPrice, setLatestPrice] = useState<MarketPrice | null>(null)
+  const [tradingAccount, setTradingAccount] =
+    useState<TradingAccountResponse | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [lastOrder, setLastOrder] = useState<OrderResponse | null>(null)
@@ -74,6 +81,37 @@ export function TradeTicket({
     }
   }, [selectedSymbol])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTradingAccount = () => {
+      getTradingAccount()
+        .then((account) => {
+          if (isMounted) {
+            setTradingAccount(account)
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setTradingAccount(null)
+          }
+        })
+    }
+
+    loadTradingAccount()
+
+    // Temporary polling until account websocket updates or shared trade state exist.
+    const intervalId = window.setInterval(
+      loadTradingAccount,
+      TEMP_ACCOUNT_REFRESH_MS,
+    )
+
+    return () => {
+      isMounted = false
+      window.clearInterval(intervalId)
+    }
+  }, [])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
@@ -99,6 +137,7 @@ export function TradeTicket({
       })
 
       setLastOrder(order)
+      setTradingAccount(await getTradingAccount())
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -259,6 +298,12 @@ export function TradeTicket({
 
         <div className="rounded-md border border-[#1e293b] bg-[#0f1727] p-3 text-sm">
           <div className="mb-2 flex justify-between gap-3 text-[#9db2d0]">
+            <span>Available balance</span>
+            <span className="font-semibold text-[#eef4ff]">
+              {formatMoney(tradingAccount?.cashBalance)}
+            </span>
+          </div>
+          <div className="mb-2 flex justify-between gap-3 text-[#9db2d0]">
             <span>Estimated margin</span>
             <span className="font-semibold text-[#eef4ff]">
               {formatMoney(marginAmount)}
@@ -304,7 +349,7 @@ export function TradeTicket({
   )
 }
 
-function formatMoney(value: number | string) {
+function formatMoney(value?: number | string | null) {
   const numericValue = Number(value)
 
   if (!Number.isFinite(numericValue) || numericValue <= 0) {

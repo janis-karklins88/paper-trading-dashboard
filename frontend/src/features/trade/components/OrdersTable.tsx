@@ -3,7 +3,11 @@ import { cancelOrder, getOrders, type OrderResponse } from '../api/orderApi'
 
 const ORDER_REFRESH_MS = 15_000
 
-export function OrdersTable() {
+type OrdersTableProps = {
+  refreshKey?: number
+}
+
+export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
   const [orders, setOrders] = useState<OrderResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [cancelingOrderId, setCancelingOrderId] = useState('')
@@ -33,6 +37,12 @@ export function OrdersTable() {
       window.clearInterval(intervalId)
     }
   }, [loadOrders])
+
+  useEffect(() => {
+    if (refreshKey > 0) {
+      loadOrders()
+    }
+  }, [loadOrders, refreshKey])
 
   async function handleCancelOrder(orderId: string) {
     setCancelingOrderId(orderId)
@@ -197,7 +207,8 @@ function formatMoney(value: string | number | null) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: 8,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(numericValue)
 }
 
