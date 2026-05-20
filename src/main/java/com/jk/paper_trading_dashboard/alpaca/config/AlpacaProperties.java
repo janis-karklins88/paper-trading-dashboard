@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "alpaca")
 public record AlpacaProperties(
     String baseUrl,
+    String tradingBaseUrl,
     String apiKey,
     String secretKey) {
 
