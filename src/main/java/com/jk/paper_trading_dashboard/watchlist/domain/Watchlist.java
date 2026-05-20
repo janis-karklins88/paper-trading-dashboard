@@ -33,6 +33,9 @@ public class Watchlist {
   @Column(nullable = false)
   private String name;
 
+  @Column(nullable = false)
+  private boolean defaultWatchlist;
+
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
 
@@ -41,8 +44,13 @@ public class Watchlist {
   }
 
   public Watchlist(User user, String name) {
+    this(user, name, false);
+  }
+
+  public Watchlist(User user, String name, boolean defaultWatchlist) {
     this.user = Objects.requireNonNull(user, "user is required");
     this.name = requireName(name);
+    this.defaultWatchlist = defaultWatchlist;
     this.createdAt = Instant.now();
   }
 
@@ -83,6 +91,14 @@ public class Watchlist {
 
   public void setName(String name) {
     this.name = requireName(name);
+  }
+
+  public boolean isDefaultWatchlist() {
+    return defaultWatchlist;
+  }
+
+  public void setDefaultWatchlist(boolean defaultWatchlist) {
+    this.defaultWatchlist = defaultWatchlist;
   }
 
   public Instant getCreatedAt() {

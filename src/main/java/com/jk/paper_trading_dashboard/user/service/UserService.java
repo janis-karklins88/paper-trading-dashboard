@@ -13,6 +13,7 @@ import com.jk.paper_trading_dashboard.user.api.dto.UserRegistrationRequest;
 import com.jk.paper_trading_dashboard.user.api.dto.UserResponse;
 import com.jk.paper_trading_dashboard.user.domain.User;
 import com.jk.paper_trading_dashboard.user.repository.UserRepository;
+import com.jk.paper_trading_dashboard.watchlist.service.WatchlistService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class UserService {
   private final UserRepository userRepo;
   private final TradingAccountService tradingAccountService;
+  private final WatchlistService watchlistService;
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
 
@@ -33,6 +35,7 @@ public class UserService {
 
     User user = userRepo.save(new User(request.email(), passwordEncoder.encode(request.password())));
     tradingAccountService.createForUser(user);
+    watchlistService.createDefaultWatchlists(user);
     return createToken(user);
   }
 

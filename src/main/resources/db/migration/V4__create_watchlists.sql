@@ -2,6 +2,7 @@ CREATE TABLE watchlists (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
+  default_watchlist BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
   CONSTRAINT fk_watchlists_user FOREIGN KEY (user_id) REFERENCES users (id)
 );

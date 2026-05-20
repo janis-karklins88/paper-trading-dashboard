@@ -1,7 +1,9 @@
 package com.jk.paper_trading_dashboard.marketdata.service;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -9,6 +11,7 @@ import com.jk.paper_trading_dashboard.marketdata.domain.Candle;
 import com.jk.paper_trading_dashboard.marketdata.domain.CandleTimeFrame;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketDataClient;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +28,21 @@ public class MarketPriceService {
 
   public MarketPrice getPriceOrRefresh(String symbol) {
     return getCachedPrice(symbol).orElseGet(() -> refreshPrice(symbol));
+  }
+
+  public List<MarketPrice> getPricesOrRefresh(List<String> symbols) {
+    if (symbols == null || symbols.isEmpty()) {
+      throw new IllegalArgumentException("symbols are required");
+    }
+
+    Set<String> uniqueSymbols = new LinkedHashSet<>();
+    for (String symbol : symbols) {
+      uniqueSymbols.add(Symbols.normalize(symbol));
+    }
+
+    return uniqueSymbols.stream()
+        .map(this::getPriceOrRefresh)
+        .toList();
   }
 
   public MarketPrice refreshPrice(String symbol) {
