@@ -6,6 +6,7 @@ import { TradingChart } from './components/TradingChart'
 import { Watchlist } from './components/Watchlist'
 import { trackActiveSymbol } from './api/marketDataApi'
 import { useSelectedMarketPrice } from './hooks/useSelectedMarketPrice'
+import type { SelectedAsset } from './types'
 
 const ACTIVE_SYMBOL_HEARTBEAT_MS = 15_000
 
@@ -14,13 +15,12 @@ export function TradeWorkspace() {
   const [ordersRefreshKey, setOrdersRefreshKey] = useState(0)
   const selectedPrice = useSelectedMarketPrice(selectedSymbol)
 
-  const selectedAsset = useMemo(() => {
+  const selectedAsset = useMemo<SelectedAsset | undefined>(() => {
     if (!selectedSymbol) {
       return undefined
     }
 
     return {
-      rank: 0,
       symbol: selectedSymbol,
       name: selectedSymbol,
       quoteSymbol: selectedSymbol,

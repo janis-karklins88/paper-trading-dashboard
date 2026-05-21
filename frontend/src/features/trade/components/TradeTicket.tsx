@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { type DefaultMarketSymbol, type MarketPrice } from '../api/marketDataApi'
+import { type MarketPrice } from '../api/marketDataApi'
 import { placeOrder, type OrderResponse } from '../api/orderApi'
 import {
   getTradingAccount,
   type TradingAccountResponse,
 } from '../api/accountApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
+import type { SelectedAsset } from '../types'
 
 type TradeTicketProps = {
-  selectedAsset?: DefaultMarketSymbol
+  selectedAsset?: SelectedAsset
   selectedSymbol: string
   latestPrice: MarketPrice | null
 }
