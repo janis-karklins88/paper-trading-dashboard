@@ -116,7 +116,7 @@ export function Watchlist({
     return () => {
       isMounted = false
     }
-  }, [onSelectSymbol, selectedSymbol, selectedWatchlistId])
+  }, [onSelectSymbol, selectedWatchlistId])
 
   useEffect(() => {
     if (itemSymbols.length === 0) {
@@ -425,7 +425,7 @@ export function Watchlist({
         </p>
       )}
 
-      <div className="overflow-hidden rounded-md border border-[#1e293b] bg-[#0f1727]">
+      <div className="watchlist-scroll max-h-[34rem] overflow-y-auto overflow-x-hidden rounded-md border border-[#1e293b] bg-[#0f1727]">
         {isLoadingDetail && (
           <p className="px-3 py-2 text-sm font-semibold text-[#9db2d0]">
             Loading

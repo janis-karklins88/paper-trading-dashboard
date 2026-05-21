@@ -42,6 +42,7 @@ export function TradingChart({
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const previousCandleKeyRef = useRef('')
+  const previousSelectedSymbolRef = useRef('')
 
   const [timeframe, setTimeframe] = useState<CandleTimeframe>('1m')
   const [candles, setCandles] = useState<MarketCandle[]>([])
@@ -192,13 +193,25 @@ export function TradingChart({
       .filter((candle) => isValidChartCandle(candle))
       .sort((left, right) => Number(left.time) - Number(right.time))
 
+    const chart = chartRef.current
+    const previousVisibleRange = chart?.timeScale().getVisibleLogicalRange()
+
     seriesRef.current.setData(chartData)
 
     if (candleKey !== previousCandleKeyRef.current) {
-      chartRef.current?.timeScale().fitContent()
+      const symbolChanged = selectedSymbol !== previousSelectedSymbolRef.current
+      const shouldFitContent = !previousCandleKeyRef.current || !symbolChanged
+
+      if (shouldFitContent) {
+        chart?.timeScale().fitContent()
+      } else if (previousVisibleRange) {
+        chart?.timeScale().setVisibleLogicalRange(previousVisibleRange)
+      }
+
       previousCandleKeyRef.current = candleKey
+      previousSelectedSymbolRef.current = selectedSymbol
     }
-  }, [candleKey, candles])
+  }, [candleKey, candles, selectedSymbol])
 
   return (
     <section className="rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)] flex h-full flex-col">
