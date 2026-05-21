@@ -5,12 +5,14 @@ import { TradeTicket } from './components/TradeTicket'
 import { TradingChart } from './components/TradingChart'
 import { Watchlist } from './components/Watchlist'
 import { trackActiveSymbol } from './api/marketDataApi'
+import { useSelectedMarketPrice } from './hooks/useSelectedMarketPrice'
 
 const ACTIVE_SYMBOL_HEARTBEAT_MS = 15_000
 
 export function TradeWorkspace() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
   const [ordersRefreshKey, setOrdersRefreshKey] = useState(0)
+  const selectedPrice = useSelectedMarketPrice(selectedSymbol)
 
   const selectedAsset = useMemo(() => {
     if (!selectedSymbol) {
@@ -67,6 +69,7 @@ export function TradeWorkspace() {
         </div>
         <div className="min-w-0 xl:col-span-3">
           <TradeTicket
+            latestPrice={selectedPrice}
             selectedAsset={selectedAsset}
             selectedSymbol={selectedSymbol}
           />
@@ -85,6 +88,7 @@ export function TradeWorkspace() {
         <div className="min-w-0 xl:col-span-3">
           <Watchlist
             onSelectSymbol={setSelectedSymbol}
+            selectedPrice={selectedPrice}
             selectedSymbol={selectedSymbol}
           />
         </div>

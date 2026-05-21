@@ -12,6 +12,7 @@ import com.jk.paper_trading_dashboard.marketdata.domain.CandleTimeFrame;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketDataClient;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
+import com.jk.paper_trading_dashboard.marketdata.ws.MarketDataPublisher;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ public class MarketPriceService {
 
   private final MarketDataClient marketDataClient;
   private final PriceCacheService priceCacheService;
+  private final MarketDataPublisher marketDataPublisher;
 
   public Optional<MarketPrice> getCachedPrice(String symbol) {
     return priceCacheService.get(symbol);
@@ -65,6 +67,7 @@ public class MarketPriceService {
     }
 
     priceCacheService.put(marketPrice);
+    marketDataPublisher.publishPriceUpdate(marketPrice.symbol(), marketPrice.price());
     return marketPrice;
   }
 

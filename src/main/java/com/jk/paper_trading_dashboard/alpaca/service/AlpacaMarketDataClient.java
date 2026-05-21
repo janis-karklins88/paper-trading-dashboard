@@ -1,6 +1,7 @@
 package com.jk.paper_trading_dashboard.alpaca.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +21,7 @@ import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 public class AlpacaMarketDataClient implements MarketDataClient {
 
   private static final int CANDLE_LIMIT = 200;
+  private static final int PRICE_SCALE = 8;
 
   private final RestClient restClient;
 
@@ -87,21 +89,37 @@ public class AlpacaMarketDataClient implements MarketDataClient {
   }
 
   private MarketPrice getLatestCryptoPrice(String symbol) {
-    CryptoLatestTradesResponse response = restClient.get()
+    CryptoLatestOrderbooksResponse response = restClient.get()
         .uri(uriBuilder -> uriBuilder
-            .path("/v1beta3/crypto/us/latest/trades")
+            .path("/v1beta3/crypto/us/latest/orderbooks")
             .queryParam("symbols", symbol)
             .build())
         .retrieve()
-        .body(CryptoLatestTradesResponse.class);
+        .body(CryptoLatestOrderbooksResponse.class);
 
-    LatestTrade trade = response == null || response.trades() == null ? null : getTradeForSymbol(response.trades(), symbol);
+    Orderbook orderbook = response == null || response.orderbooks() == null
+        ? null
+        : getOrderbookForSymbol(response.orderbooks(), symbol);
 
-    if (trade == null || trade.p() == null) {
-      throw new IllegalStateException("Latest crypto trade price is missing for symbol " + symbol);
+    BigDecimal midpoint = calculateMidpoint(orderbook, symbol);
+
+    return new MarketPrice(symbol, midpoint);
+  }
+
+  private BigDecimal calculateMidpoint(Orderbook orderbook, String symbol) {
+    if (orderbook == null || orderbook.b() == null || orderbook.b().isEmpty()
+        || orderbook.a() == null || orderbook.a().isEmpty()) {
+      throw new IllegalStateException("Latest crypto orderbook is missing for symbol " + symbol);
     }
 
-    return new MarketPrice(symbol, trade.p());
+    BigDecimal bidPrice = orderbook.b().getFirst().p();
+    BigDecimal askPrice = orderbook.a().getFirst().p();
+
+    if (bidPrice == null || bidPrice.signum() <= 0 || askPrice == null || askPrice.signum() <= 0) {
+      throw new IllegalStateException("Latest crypto orderbook price is missing for symbol " + symbol);
+    }
+
+    return bidPrice.add(askPrice).divide(BigDecimal.valueOf(2), PRICE_SCALE, RoundingMode.HALF_UP);
   }
 
   private List<Candle> getCryptoCandles(String symbol, CandleTimeFrame timeframe) {
@@ -171,6 +189,23 @@ public class AlpacaMarketDataClient implements MarketDataClient {
         .orElse(null);
   }
 
+  private Orderbook getOrderbookForSymbol(Map<String, Orderbook> orderbooksBySymbol, String symbol) {
+    Orderbook orderbook = orderbooksBySymbol.get(symbol);
+
+    if (orderbook != null) {
+      return orderbook;
+    }
+
+    String symbolWithoutSeparator = symbol.replace("/", "");
+    return orderbooksBySymbol.entrySet()
+        .stream()
+        .filter(entry -> entry.getKey().equalsIgnoreCase(symbol)
+            || entry.getKey().replace("/", "").equalsIgnoreCase(symbolWithoutSeparator))
+        .map(Map.Entry::getValue)
+        .findFirst()
+        .orElse(null);
+  }
+
   private boolean isCryptoPair(String symbol) {
     return symbol.contains("/");
   }
@@ -203,6 +238,23 @@ public class AlpacaMarketDataClient implements MarketDataClient {
 
   private record CryptoLatestTradesResponse(
       Map<String, LatestTrade> trades) {
+
+  }
+
+  private record CryptoLatestOrderbooksResponse(
+      Map<String, Orderbook> orderbooks) {
+
+  }
+
+  private record Orderbook(
+      List<OrderbookLevel> b,
+      List<OrderbookLevel> a) {
+
+  }
+
+  private record OrderbookLevel(
+      BigDecimal p,
+      BigDecimal s) {
 
   }
 

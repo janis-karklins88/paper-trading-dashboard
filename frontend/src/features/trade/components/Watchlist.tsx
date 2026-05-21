@@ -15,6 +15,7 @@ import {
 } from '../api/watchlistApi'
 
 type WatchlistProps = {
+  selectedPrice: MarketPrice | null
   selectedSymbol: string
   onSelectSymbol: (symbol: string) => void
 }
@@ -24,6 +25,7 @@ const MIN_SEARCH_LENGTH = 1
 
 export function Watchlist({
   selectedSymbol,
+  selectedPrice,
   onSelectSymbol,
 }: WatchlistProps) {
   const [watchlists, setWatchlists] = useState<WatchlistResponse[]>([])
@@ -154,6 +156,17 @@ export function Watchlist({
       window.clearInterval(intervalId)
     }
   }, [itemSymbols])
+
+  useEffect(() => {
+    if (!selectedPrice) {
+      return
+    }
+
+    setPrices((currentPrices) => ({
+      ...currentPrices,
+      [selectedPrice.symbol]: selectedPrice,
+    }))
+  }, [selectedPrice])
 
   useEffect(() => {
     const normalizedQuery = symbolQuery.trim()

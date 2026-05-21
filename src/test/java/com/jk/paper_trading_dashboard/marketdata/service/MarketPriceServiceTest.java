@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketDataClient;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
+import com.jk.paper_trading_dashboard.marketdata.ws.MarketDataPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class MarketPriceServiceTest {
@@ -27,11 +28,14 @@ class MarketPriceServiceTest {
   @Mock
   private PriceCacheService priceCacheService;
 
+  @Mock
+  private MarketDataPublisher marketDataPublisher;
+
   private MarketPriceService marketPriceService;
 
   @BeforeEach
   void setUp() {
-    marketPriceService = new MarketPriceService(marketDataClient, priceCacheService);
+    marketPriceService = new MarketPriceService(marketDataClient, priceCacheService, marketDataPublisher);
   }
 
   @Test
@@ -49,6 +53,7 @@ class MarketPriceServiceTest {
         .containsExactly("BTC/USD", "AAPL");
     verify(marketDataClient, never()).getLatestPrice("BTC/USD");
     verify(priceCacheService).put(fetchedAaplPrice);
+    verify(marketDataPublisher).publishPriceUpdate("AAPL", new BigDecimal("200"));
   }
 
   @Test
@@ -65,5 +70,6 @@ class MarketPriceServiceTest {
         .extracting(MarketPrice::symbol)
         .containsExactly("AAPL");
     verify(priceCacheService).put(fetchedAaplPrice);
+    verify(marketDataPublisher).publishPriceUpdate("AAPL", new BigDecimal("200"));
   }
 }

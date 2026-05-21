@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import {
-  getLatestPrice,
-  type DefaultMarketSymbol,
-  type MarketPrice,
-} from '../api/marketDataApi'
+import { type DefaultMarketSymbol, type MarketPrice } from '../api/marketDataApi'
 import { placeOrder, type OrderResponse } from '../api/orderApi'
 import {
   getTradingAccount,
@@ -15,15 +11,16 @@ import { formatOptionalPrice } from '../../../utils/formatters'
 type TradeTicketProps = {
   selectedAsset?: DefaultMarketSymbol
   selectedSymbol: string
+  latestPrice: MarketPrice | null
 }
 
 type OrderSide = 'buy' | 'sell'
 type OrderType = 'market' | 'limit'
 
-const TEMP_PRICE_REFRESH_MS = 15_000
 const TEMP_ACCOUNT_REFRESH_MS = 15_000
 
 export function TradeTicket({
+  latestPrice,
   selectedAsset,
   selectedSymbol,
 }: TradeTicketProps) {
@@ -32,7 +29,6 @@ export function TradeTicket({
   const [marginAmount, setMarginAmount] = useState('')
   const [leverage, setLeverage] = useState('1')
   const [limitPrice, setLimitPrice] = useState('')
-  const [latestPrice, setLatestPrice] = useState<MarketPrice | null>(null)
   const [tradingAccount, setTradingAccount] =
     useState<TradingAccountResponse | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -48,38 +44,6 @@ export function TradeTicket({
     Number(leverage) >= 1 &&
     (orderType === 'market' || Number(limitPrice) > 0) &&
     !isSubmitting
-
-  useEffect(() => {
-    if (!selectedSymbol) {
-      return
-    }
-
-    let isMounted = true
-
-    const loadLatestPrice = () => {
-      getLatestPrice(selectedSymbol)
-        .then((price) => {
-          if (isMounted) {
-            setLatestPrice(price)
-          }
-        })
-        .catch(() => {
-          if (isMounted) {
-            setLatestPrice(null)
-          }
-        })
-    }
-
-    loadLatestPrice()
-
-    // Temporary polling until market-data websocket streaming is added.
-    const intervalId = window.setInterval(loadLatestPrice, TEMP_PRICE_REFRESH_MS)
-
-    return () => {
-      isMounted = false
-      window.clearInterval(intervalId)
-    }
-  }, [selectedSymbol])
 
   useEffect(() => {
     let isMounted = true

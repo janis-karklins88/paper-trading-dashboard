@@ -13,10 +13,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getCandles,
   type CandleTimeframe,
-  type DefaultMarketSymbol,
   type MarketCandle,
 } from '../api/marketDataApi'
 import { formatPrice } from '../../../utils/formatters'
+import type { SelectedAsset } from '../types'
 
 const timeframes: Array<{ label: string; value: CandleTimeframe }> = [
   { label: '1m', value: '1m' },
@@ -30,7 +30,7 @@ const TEMP_CHART_REFRESH_MS = 15_000
 const CHART_TIME_ZONE = 'Europe/Riga'
 
 type TradingChartProps = {
-  selectedAsset?: DefaultMarketSymbol
+  selectedAsset?: SelectedAsset
   selectedSymbol: string
 }
 
@@ -44,7 +44,7 @@ export function TradingChart({
   const previousCandleKeyRef = useRef('')
   const previousSelectedSymbolRef = useRef('')
 
-  const [timeframe, setTimeframe] = useState<CandleTimeframe>('1m')
+  const [timeframe, setTimeframe] = useState<CandleTimeframe>('1h')
   const [candles, setCandles] = useState<MarketCandle[]>([])
   const [loadedCandleKey, setLoadedCandleKey] = useState('')
   const [error, setError] = useState('')

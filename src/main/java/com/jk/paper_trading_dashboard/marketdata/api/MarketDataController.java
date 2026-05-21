@@ -12,12 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.jk.paper_trading_dashboard.marketdata.domain.Candle;
 import com.jk.paper_trading_dashboard.marketdata.domain.CandleTimeFrame;
-import com.jk.paper_trading_dashboard.marketdata.domain.DefaultCryptoSymbol;
-import com.jk.paper_trading_dashboard.marketdata.domain.DefaultMarketSymbol;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.dto.LatestPricesRequest;
 import com.jk.paper_trading_dashboard.marketdata.dto.TrackActiveSymbolRequest;
-import com.jk.paper_trading_dashboard.marketdata.service.DefaultMarketSymbolService;
 import com.jk.paper_trading_dashboard.marketdata.service.ActiveMarketSymbolService;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 
@@ -31,7 +28,6 @@ public class MarketDataController {
 
   private final MarketPriceService marketPriceService;
   private final ActiveMarketSymbolService activeMarketSymbolService;
-  private final DefaultMarketSymbolService defaultMarketSymbolService;
 
   @GetMapping("/latest-price")
   public ResponseEntity<MarketPrice> getLatestPrice(@RequestParam String symbol) {
@@ -52,15 +48,5 @@ public class MarketDataController {
   @GetMapping("/candles")
   public ResponseEntity<List<Candle>> getCandles(@RequestParam String symbol, @RequestParam String timeframe) {
     return ResponseEntity.ok(marketPriceService.getCandles(symbol, CandleTimeFrame.fromValue(timeframe)));
-  }
-
-  @GetMapping("/defaults/crypto")
-  public ResponseEntity<List<DefaultCryptoSymbol>> getDefaultCryptoSymbols() {
-    return ResponseEntity.ok(defaultMarketSymbolService.getTopCryptoSymbols());
-  }
-
-  @GetMapping("/defaults/stocks")
-  public ResponseEntity<List<DefaultMarketSymbol>> getDefaultStockSymbols() {
-    return ResponseEntity.ok(defaultMarketSymbolService.getPopularStockSymbols());
   }
 }
