@@ -95,7 +95,7 @@ public class AlpacaMarketDataClient implements MarketDataClient {
         .retrieve()
         .body(CryptoLatestTradesResponse.class);
 
-    LatestTrade trade = response == null || response.trades() == null ? null : response.trades().get(symbol);
+    LatestTrade trade = response == null || response.trades() == null ? null : getTradeForSymbol(response.trades(), symbol);
 
     if (trade == null || trade.p() == null) {
       throw new IllegalStateException("Latest crypto trade price is missing for symbol " + symbol);
@@ -146,6 +146,23 @@ public class AlpacaMarketDataClient implements MarketDataClient {
 
     String symbolWithoutSeparator = symbol.replace("/", "");
     return barsBySymbol.entrySet()
+        .stream()
+        .filter(entry -> entry.getKey().equalsIgnoreCase(symbol)
+            || entry.getKey().replace("/", "").equalsIgnoreCase(symbolWithoutSeparator))
+        .map(Map.Entry::getValue)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private LatestTrade getTradeForSymbol(Map<String, LatestTrade> tradesBySymbol, String symbol) {
+    LatestTrade trade = tradesBySymbol.get(symbol);
+
+    if (trade != null) {
+      return trade;
+    }
+
+    String symbolWithoutSeparator = symbol.replace("/", "");
+    return tradesBySymbol.entrySet()
         .stream()
         .filter(entry -> entry.getKey().equalsIgnoreCase(symbol)
             || entry.getKey().replace("/", "").equalsIgnoreCase(symbolWithoutSeparator))

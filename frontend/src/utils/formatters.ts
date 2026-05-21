@@ -1,17 +1,19 @@
 export function formatPrice(price: number): string {
-  if (price >= 1000) {
+  const absolutePrice = Math.abs(price)
+
+  if (absolutePrice >= 1000) {
     return price.toFixed(2)
   }
 
-  if (price >= 1) {
+  if (absolutePrice >= 1) {
     return price.toFixed(2)
   }
 
-  if (price >= 0.01) {
+  if (absolutePrice >= 0.01) {
     return price.toFixed(4)
   }
 
-  if (price >= 0.0001) {
+  if (absolutePrice >= 0.0001) {
     return price.toFixed(6)
   }
 

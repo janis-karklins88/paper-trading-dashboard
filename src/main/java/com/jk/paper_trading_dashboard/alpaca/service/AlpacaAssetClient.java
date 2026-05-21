@@ -34,6 +34,10 @@ public class AlpacaAssetClient {
     for (String assetClass : SUPPORTED_ASSET_CLASSES) {
       for (String status : SYNC_STATUSES) {
         for (AlpacaAssetDto asset : getAssets(assetClass, status)) {
+          if (asset.symbol() == null || asset.symbol().isBlank()) {
+            continue;
+          }
+
           assetsBySymbol.put(Symbols.normalize(asset.symbol()), asset);
         }
       }

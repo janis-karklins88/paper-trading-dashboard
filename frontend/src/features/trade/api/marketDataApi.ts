@@ -42,14 +42,28 @@ export async function getLatestPrice(symbol: string) {
   return fetchJson<MarketPrice>(`/api/market-data/latest-price?${params}`)
 }
 
-async function fetchJson<T>(url: string) {
+export async function getLatestPrices(symbols: string[]) {
+  return fetchJson<MarketPrice[]>('/api/market-data/latest-prices', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ symbols }),
+  })
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit) {
   const token = getStoredAuthToken()
   const response = await fetch(url, {
-    headers: token
+    ...init,
+    headers: {
+      ...init?.headers,
+      ...(token
       ? {
           Authorization: `Bearer ${token}`,
         }
-      : undefined,
+      : {}),
+    },
   })
 
   if (!response.ok) {

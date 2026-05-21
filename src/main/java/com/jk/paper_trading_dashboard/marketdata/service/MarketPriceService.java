@@ -14,9 +14,11 @@ import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MarketPriceService {
 
   private final MarketDataClient marketDataClient;
@@ -41,8 +43,18 @@ public class MarketPriceService {
     }
 
     return uniqueSymbols.stream()
-        .map(this::getPriceOrRefresh)
+        .map(this::getPriceOrRefreshOrSkip)
+        .flatMap(Optional::stream)
         .toList();
+  }
+
+  private Optional<MarketPrice> getPriceOrRefreshOrSkip(String symbol) {
+    try {
+      return Optional.of(getPriceOrRefresh(symbol));
+    } catch (RuntimeException exception) {
+      log.warn("Skipping unavailable market price for symbol {}", symbol, exception);
+      return Optional.empty();
+    }
   }
 
   public MarketPrice refreshPrice(String symbol) {

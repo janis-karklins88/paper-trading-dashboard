@@ -50,4 +50,20 @@ class MarketPriceServiceTest {
     verify(marketDataClient, never()).getLatestPrice("BTC/USD");
     verify(priceCacheService).put(fetchedAaplPrice);
   }
+
+  @Test
+  void getPricesOrRefreshSkipsUnavailableSymbols() {
+    MarketPrice fetchedAaplPrice = new MarketPrice("AAPL", new BigDecimal("200"));
+    when(priceCacheService.get("BTC/USD")).thenReturn(Optional.empty());
+    when(priceCacheService.get("AAPL")).thenReturn(Optional.empty());
+    when(marketDataClient.getLatestPrice("BTC/USD")).thenThrow(new IllegalStateException("unavailable"));
+    when(marketDataClient.getLatestPrice("AAPL")).thenReturn(fetchedAaplPrice);
+
+    List<MarketPrice> prices = marketPriceService.getPricesOrRefresh(List.of("BTC/USD", "AAPL"));
+
+    assertThat(prices)
+        .extracting(MarketPrice::symbol)
+        .containsExactly("AAPL");
+    verify(priceCacheService).put(fetchedAaplPrice);
+  }
 }

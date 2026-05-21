@@ -41,14 +41,33 @@ class SymbolSyncServiceTest {
   void syncSymbolsUpdatesExistingSymbolsAndSavesOnlyNewOnes() {
     Symbol existingSymbol = new Symbol("AAPL", "Old Name", AssetType.STOCK, "NASDAQ", true, true);
     when(alpacaAssetClient.getAssets()).thenReturn(List.of(
-        new AlpacaAssetDto("AAPL", "Apple Inc.", "us_equity", "NASDAQ", "active", true),
-        new AlpacaAssetDto("BTC/USD", "Bitcoin", "crypto", "CRYPTO", "active", true)));
+        new AlpacaAssetDto("AAPL", "Apple Inc.", "us_equity", null, "NASDAQ", "active", true),
+        new AlpacaAssetDto("BTC/USD", "Bitcoin", "crypto", null, "CRYPTO", "active", true)));
     when(symbolRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of(existingSymbol));
 
     int syncedCount = symbolSyncService.syncSymbols();
 
     assertThat(syncedCount).isEqualTo(2);
     assertThat(existingSymbol.getDisplayName()).isEqualTo("Apple Inc.");
+
+    ArgumentCaptor<List<Symbol>> savedSymbolsCaptor = ArgumentCaptor.forClass(List.class);
+    verify(symbolRepository).saveAll(savedSymbolsCaptor.capture());
+    assertThat(savedSymbolsCaptor.getValue())
+        .extracting(Symbol::getSymbol)
+        .containsExactly("BTC/USD");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void syncSymbolsSkipsAssetsWithMissingAssetClass() {
+    when(alpacaAssetClient.getAssets()).thenReturn(List.of(
+        new AlpacaAssetDto("AAPL", "Apple Inc.", null, null, "NASDAQ", "active", true),
+        new AlpacaAssetDto("BTC/USD", "Bitcoin", "crypto", null, "CRYPTO", "active", true)));
+    when(symbolRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
+
+    int syncedCount = symbolSyncService.syncSymbols();
+
+    assertThat(syncedCount).isEqualTo(1);
 
     ArgumentCaptor<List<Symbol>> savedSymbolsCaptor = ArgumentCaptor.forClass(List.class);
     verify(symbolRepository).saveAll(savedSymbolsCaptor.capture());

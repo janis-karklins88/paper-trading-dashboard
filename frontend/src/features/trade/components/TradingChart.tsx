@@ -96,6 +96,11 @@ export function TradingChart({
       borderDownColor: '#ff5367',
       wickUpColor: '#00d084',
       wickDownColor: '#ff5367',
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => formatPrice(price),
+        minMove: 0.00000001,
+      },
     })
 
     chartRef.current = chart

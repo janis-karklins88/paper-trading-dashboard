@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -17,9 +18,11 @@ import com.jk.paper_trading_dashboard.marketdata.symbol.domain.Symbol;
 import com.jk.paper_trading_dashboard.marketdata.symbol.repository.SymbolRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SymbolSyncService {
 
   private final AlpacaAssetClient alpacaAssetClient;
@@ -29,7 +32,8 @@ public class SymbolSyncService {
   public int syncSymbols() {
     Map<String, Symbol> incomingSymbols = alpacaAssetClient.getAssets()
         .stream()
-        .map(this::toSymbol)
+        .map(this::tryToSymbol)
+        .flatMap(Optional::stream)
         .collect(Collectors.toMap(
             Symbol::getSymbol,
             Function.identity(),
@@ -62,11 +66,24 @@ public class SymbolSyncService {
     return incomingSymbols.size();
   }
 
+  private Optional<Symbol> tryToSymbol(AlpacaAssetDto dto) {
+    try {
+      return Optional.of(toSymbol(dto));
+    } catch (IllegalArgumentException exception) {
+      log.warn("Skipping Alpaca asset during symbol sync: {}", exception.getMessage());
+      return Optional.empty();
+    }
+  }
+
   private Symbol toSymbol(AlpacaAssetDto dto) {
+    if (dto == null) {
+      throw new IllegalArgumentException("asset dto is required");
+    }
+
     return new Symbol(
         dto.symbol(),
         dto.name(),
-        mapAssetType(dto.asset_class()),
+        mapAssetType(dto.resolvedAssetClass()),
         dto.exchange(),
         "active".equalsIgnoreCase(normalizeNullable(dto.status())),
         Boolean.TRUE.equals(dto.tradable()));
