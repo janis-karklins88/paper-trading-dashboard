@@ -15,6 +15,7 @@ import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
+import com.jk.paper_trading_dashboard.watchlist.repository.WatchlistItemRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,11 +27,19 @@ public class MarketPriceUpdater {
 
   private final PositionRepository positionRepository;
   private final OrderRepository orderRepository;
+  private final WatchlistItemRepository watchlistItemRepository;
+  private final ActiveMarketSymbolService activeMarketSymbolService;
   private final MarketPriceService marketPriceService;
 
   public void updateMarketPrices() {
-    var symbolsToTrack = getSymbolsToTrack();
+    refreshPrices(getActiveTradingSymbolsToTrack());
+  }
 
+  public void updateWatchlistMarketPrices() {
+    refreshPrices(getWatchlistSymbolsToTrack());
+  }
+
+  private void refreshPrices(Set<String> symbolsToTrack) {
     for (var symbol : symbolsToTrack) {
       try {
         marketPriceService.refreshPrice(symbol);
@@ -40,7 +49,7 @@ public class MarketPriceUpdater {
     }
   }
 
-  private Set<String> getSymbolsToTrack() {
+  private Set<String> getActiveTradingSymbolsToTrack() {
     Set<String> symbols = new HashSet<>();
 
     positionRepository.findByStatus(PositionStatus.OPEN)
@@ -52,6 +61,22 @@ public class MarketPriceUpdater {
     orderRepository.findByStatusAndType(OrderStatus.OPEN, OrderType.LIMIT)
         .stream()
         .map(Order::getSymbol)
+        .map(Symbols::normalize)
+        .forEach(symbols::add);
+
+    activeMarketSymbolService.getActiveSymbols()
+        .stream()
+        .map(Symbols::normalize)
+        .forEach(symbols::add);
+
+    return symbols;
+  }
+
+  private Set<String> getWatchlistSymbolsToTrack() {
+    Set<String> symbols = new HashSet<>();
+
+    watchlistItemRepository.findDistinctSymbols()
+        .stream()
         .map(Symbols::normalize)
         .forEach(symbols::add);
 

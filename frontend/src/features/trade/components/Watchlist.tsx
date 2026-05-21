@@ -19,7 +19,7 @@ type WatchlistProps = {
   onSelectSymbol: (symbol: string) => void
 }
 
-const PRICE_REFRESH_MS = 15_000
+const PRICE_REFRESH_MS = 60_000
 const MIN_SEARCH_LENGTH = 1
 
 export function Watchlist({
@@ -425,7 +425,7 @@ export function Watchlist({
         </p>
       )}
 
-      <div className="watchlist-scroll max-h-[34rem] overflow-y-auto overflow-x-hidden rounded-md border border-[#1e293b] bg-[#0f1727]">
+      <div className="watchlist-scroll max-h-136 overflow-y-auto overflow-x-hidden rounded-md border border-[#1e293b] bg-[#0f1727]">
         {isLoadingDetail && (
           <p className="px-3 py-2 text-sm font-semibold text-[#9db2d0]">
             Loading
@@ -440,7 +440,7 @@ export function Watchlist({
             return (
               <div
                 className={[
-                  'grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-[#1e293b] px-3 py-1.5 text-sm transition last:border-b-0',
+                  'grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-[#1e293b] px-3 py-1.5 text-[13px] transition last:border-b-0',
                   isSelected
                     ? 'bg-[#18234d] text-[#f7fbff]'
                     : 'bg-[#0f1727] text-[#dce8ff]',

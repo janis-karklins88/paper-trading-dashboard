@@ -52,6 +52,16 @@ export async function getLatestPrices(symbols: string[]) {
   })
 }
 
+export async function trackActiveSymbol(symbol: string) {
+  await fetchJson<void>('/api/market-data/active-symbol', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ symbol }),
+  })
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit) {
   const token = getStoredAuthToken()
   const response = await fetch(url, {
@@ -68,6 +78,10 @@ async function fetchJson<T>(url: string, init?: RequestInit) {
 
   if (!response.ok) {
     throw new Error('Failed to load market data')
+  }
+
+  if (response.status === 204) {
+    return undefined as T
   }
 
   return (await response.json()) as T

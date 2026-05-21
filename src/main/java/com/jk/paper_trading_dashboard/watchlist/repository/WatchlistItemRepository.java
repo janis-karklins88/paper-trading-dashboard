@@ -20,6 +20,9 @@ public interface WatchlistItemRepository extends JpaRepository<WatchlistItem, UU
 
   boolean existsByWatchlist_IdAndSymbol(UUID watchlistId, String symbol);
 
+  @Query("SELECT DISTINCT i.symbol FROM WatchlistItem i")
+  List<String> findDistinctSymbols();
+
   @Query("SELECT COALESCE(MAX(i.sortOrder), -1) FROM WatchlistItem i WHERE i.watchlist.id = :watchlistId")
   int findMaxSortOrderByWatchlistId(@Param("watchlistId") UUID watchlistId);
 }

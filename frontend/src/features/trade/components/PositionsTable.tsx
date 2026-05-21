@@ -122,13 +122,15 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
         </span>
       </div>
 
-      <div className="max-w-full overflow-x-auto rounded-md border border-[#1e293b]">
-        <table className="w-full min-w-250 border-collapse text-left text-sm">
+      <div className="watchlist-scroll max-w-full overflow-x-auto rounded-md border border-[#1e293b]">
+        <table className="w-full min-w-220 border-collapse text-left text-[13px]">
           <thead className="bg-[#0f1727] text-[#9db2d0]">
             <tr>
               <th className={headerCellClass}>Symbol</th>
               <th className={headerCellClass}>Side</th>
               <th className={headerCellClass}>Status</th>
+              <th className={headerCellClass}>Qty</th>
+              <th className={headerCellClass}>Value</th>
               <th className={headerCellClass}>Entry price</th>
               <th className={headerCellClass}>Current price</th>
               <th className={headerCellClass}>TP</th>
@@ -147,10 +149,10 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
 
               return (
                 <tr className="border-t border-[#1e293b]" key={position.id}>
-                  <td className="px-4 py-3 font-bold text-[#f7fbff]">
+                  <td className="px-3 py-2.5 font-bold text-[#f7fbff]">
                     {position.symbol}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     <span
                       className={[
                         'font-bold',
@@ -162,7 +164,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                       {formatEnumLabel(position.side)}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     <span
                       className={[
                         'rounded-full px-2.5 py-1 text-xs font-bold',
@@ -175,6 +177,12 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                     </span>
                   </td>
                   <td className={bodyCellClass}>
+                    {formatQuantity(position.quantity)}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {formatMoney(calculatePositionValue(position))}
+                  </td>
+                  <td className={bodyCellClass}>
                     {formatOptionalPrice(position.avgEntryPrice)}
                   </td>
                   <td className={bodyCellClass}>
@@ -184,7 +192,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                   <td className={bodyCellClass}>--</td>
                   <td
                     className={[
-                      'whitespace-nowrap px-4 py-3 font-bold',
+                      'whitespace-nowrap px-3 py-2.5 font-bold',
                       pnl >= 0 ? 'text-[#00d084]' : 'text-[#ff5367]',
                     ].join(' ')}
                   >
@@ -196,10 +204,10 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                   <td className={bodyCellClass}>
                     {formatDateTime(position.openedAt)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-3 py-2.5">
                     {position.status === 'OPEN' ? (
                       <button
-                        className="min-h-8 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-3 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="min-h-7 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-2.5 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={isClosing}
                         onClick={() => void handleClosePosition(position.id)}
                         type="button"
@@ -220,7 +228,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
               <tr className="border-t border-[#1e293b]">
                 <td
                   className="px-4 py-8 text-center text-[#9db2d0]"
-                  colSpan={10}
+                  colSpan={12}
                 >
                   No positions yet
                 </td>
@@ -289,6 +297,17 @@ function getPositionPnl(position: PositionResponse) {
   return position.status === 'OPEN' ? position.unrealizedPnl : position.realizedPnl
 }
 
+function calculatePositionValue(position: PositionResponse) {
+  const quantity = Number(position.quantity)
+  const price = Number(position.currentPrice)
+
+  if (!Number.isFinite(quantity) || !Number.isFinite(price)) {
+    return null
+  }
+
+  return quantity * price
+}
+
 function sortOpenPositions(positions: PositionResponse[]) {
   return [...positions].sort(
     (left, right) =>
@@ -327,6 +346,33 @@ function formatPnlMoney(value: string | number | null) {
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  }).format(numericValue)
+}
+
+function formatMoney(value: string | number | null) {
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue)) {
+    return '--'
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numericValue)
+}
+
+function formatQuantity(value: string | number | null) {
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue)) {
+    return '--'
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 8,
   }).format(numericValue)
 }
 
@@ -403,7 +449,7 @@ function PaginationControls({
 }
 
 const headerCellClass =
-  'whitespace-nowrap px-4 py-3 text-xs font-extrabold uppercase'
-const bodyCellClass = 'whitespace-nowrap px-4 py-3 text-[#9db2d0]'
+  'whitespace-nowrap px-3 py-2.5 text-xs font-extrabold uppercase'
+const bodyCellClass = 'whitespace-nowrap px-3 py-2.5 text-[#9db2d0]'
 const paginationButtonClass =
   'min-h-8 rounded-md border border-[#21304a] bg-[#0f1727] px-3 text-[#dce8ff] transition hover:border-[#334666] hover:bg-[#131e31] disabled:cursor-not-allowed disabled:opacity-50'

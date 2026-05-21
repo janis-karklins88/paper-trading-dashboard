@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { OrdersTable } from './components/OrdersTable'
 import { PositionsTable } from './components/PositionsTable'
 import { TradeTicket } from './components/TradeTicket'
 import { TradingChart } from './components/TradingChart'
 import { Watchlist } from './components/Watchlist'
+import { trackActiveSymbol } from './api/marketDataApi'
+
+const ACTIVE_SYMBOL_HEARTBEAT_MS = 15_000
 
 export function TradeWorkspace() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
@@ -20,6 +23,26 @@ export function TradeWorkspace() {
       name: selectedSymbol,
       quoteSymbol: selectedSymbol,
     }
+  }, [selectedSymbol])
+
+  useEffect(() => {
+    if (!selectedSymbol) {
+      return
+    }
+
+    const trackSelectedSymbol = () => {
+      trackActiveSymbol(selectedSymbol).catch(() => {
+        // Best effort; the ticket can still fall back to direct latest-price polling.
+      })
+    }
+
+    trackSelectedSymbol()
+    const intervalId = window.setInterval(
+      trackSelectedSymbol,
+      ACTIVE_SYMBOL_HEARTBEAT_MS,
+    )
+
+    return () => window.clearInterval(intervalId)
   }, [selectedSymbol])
 
   return (

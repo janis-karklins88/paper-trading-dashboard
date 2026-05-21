@@ -16,7 +16,9 @@ import com.jk.paper_trading_dashboard.marketdata.domain.DefaultCryptoSymbol;
 import com.jk.paper_trading_dashboard.marketdata.domain.DefaultMarketSymbol;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.dto.LatestPricesRequest;
+import com.jk.paper_trading_dashboard.marketdata.dto.TrackActiveSymbolRequest;
 import com.jk.paper_trading_dashboard.marketdata.service.DefaultMarketSymbolService;
+import com.jk.paper_trading_dashboard.marketdata.service.ActiveMarketSymbolService;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 
 import jakarta.validation.Valid;
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class MarketDataController {
 
   private final MarketPriceService marketPriceService;
+  private final ActiveMarketSymbolService activeMarketSymbolService;
   private final DefaultMarketSymbolService defaultMarketSymbolService;
 
   @GetMapping("/latest-price")
@@ -38,6 +41,12 @@ public class MarketDataController {
   @PostMapping("/latest-prices")
   public ResponseEntity<List<MarketPrice>> getLatestPrices(@Valid @RequestBody LatestPricesRequest request) {
     return ResponseEntity.ok(marketPriceService.getPricesOrRefresh(request.symbols()));
+  }
+
+  @PostMapping("/active-symbol")
+  public ResponseEntity<Void> trackActiveSymbol(@Valid @RequestBody TrackActiveSymbolRequest request) {
+    activeMarketSymbolService.track(request.symbol());
+    return ResponseEntity.noContent().build();
   }
 
   @GetMapping("/candles")

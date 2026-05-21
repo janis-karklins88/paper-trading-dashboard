@@ -16,4 +16,9 @@ public class MarketPriceUpdateJob {
   public void updateMarketPrices() {
     marketPriceUpdater.updateMarketPrices();
   }
+
+  @Scheduled(fixedDelayString = "${app.market-data.watchlist-refresh-delay-ms:60000}")
+  public void updateWatchlistMarketPrices() {
+    marketPriceUpdater.updateWatchlistMarketPrices();
+  }
 }

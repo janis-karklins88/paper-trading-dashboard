@@ -77,8 +77,8 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
         </span>
       </div>
 
-      <div className="max-w-full overflow-x-auto rounded-md border border-[#1e293b]">
-        <table className="w-full min-w-225 border-collapse text-left text-sm">
+      <div className="watchlist-scroll max-w-full overflow-x-auto rounded-md border border-[#1e293b]">
+        <table className="w-full min-w-220 border-collapse text-left text-[13px]">
           <thead className="bg-[#0f1727] text-[#9db2d0]">
             <tr>
               <th className={headerCellClass}>Symbol</th>
@@ -101,10 +101,10 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
 
               return (
                 <tr className="border-t border-[#1e293b]" key={order.id}>
-                  <td className="px-4 py-3 font-bold text-[#f7fbff]">
+                  <td className="px-3 py-2.5 font-bold text-[#f7fbff]">
                     {order.symbol}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     <span
                       className={[
                         'font-bold',
@@ -119,7 +119,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
                   <td className={bodyCellClass}>
                     {formatEnumLabel(order.type)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     <span
                       className={[
                         'rounded-full px-2.5 py-1 text-xs font-bold',
@@ -144,7 +144,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
                   <td className={bodyCellClass}>
                     {canCancelOrder ? (
                       <button
-                        className="min-h-8 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-3 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="min-h-7 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-2.5 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={isCanceling}
                         onClick={() => void handleCancelOrder(order.id)}
                         type="button"
@@ -277,8 +277,8 @@ function statusClass(status: string) {
 }
 
 const headerCellClass =
-  'whitespace-nowrap px-4 py-3 text-xs font-extrabold uppercase'
-const bodyCellClass = 'whitespace-nowrap px-4 py-3 text-[#9db2d0]'
+  'whitespace-nowrap px-3 py-2.5 text-xs font-extrabold uppercase'
+const bodyCellClass = 'whitespace-nowrap px-3 py-2.5 text-[#9db2d0]'
 
 type PaginationControlsProps = {
   className?: string
