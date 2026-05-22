@@ -21,7 +21,9 @@ import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepository;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
+import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
@@ -44,6 +46,9 @@ class LimitOrderExecutionServiceTest {
   @Mock
   private PositionPublisher positionPublisher;
 
+  @Mock
+  private OrderPublisher orderPublisher;
+
   private LimitOrderExecutionService limitOrderExecutionService;
   private TradingAccount account;
 
@@ -53,7 +58,8 @@ class LimitOrderExecutionServiceTest {
         orderRepository,
         tradingAccountRepository,
         positionService,
-        positionPublisher);
+        positionPublisher,
+        orderPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
   }
 
@@ -97,6 +103,7 @@ class LimitOrderExecutionServiceTest {
     assertThat(captor.getValue().side()).isEqualTo(PositionSide.LONG);
     assertThat(captor.getValue().avgEntryPrice()).isEqualByComparingTo("99.99997500");
     assertThat(captor.getValue().currentPrice()).isEqualByComparingTo("99.95");
+    verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
   }
 
   @Test
@@ -128,6 +135,7 @@ class LimitOrderExecutionServiceTest {
     assertThat(captor.getValue().side()).isEqualTo(PositionSide.SHORT);
     assertThat(captor.getValue().avgEntryPrice()).isEqualByComparingTo("100.00997000");
     assertThat(captor.getValue().currentPrice()).isEqualByComparingTo("100.06");
+    verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
   }
 
   private Order openLimitOrder(OrderSide side, BigDecimal limitPrice) {

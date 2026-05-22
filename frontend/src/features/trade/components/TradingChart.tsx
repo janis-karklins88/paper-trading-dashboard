@@ -1,10 +1,12 @@
 import {
   CandlestickSeries,
   ColorType,
+  LineStyle,
   TickMarkType,
   createChart,
   type CandlestickData,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type Time,
   type UTCTimestamp,
@@ -17,7 +19,7 @@ import {
   type MarketPrice,
 } from '../api/marketDataApi'
 import { formatPrice } from '../../../utils/formatters'
-import type { SelectedAsset } from '../types'
+import type { ChartLevel, SelectedAsset } from '../types'
 
 const timeframes: Array<{ label: string; value: CandleTimeframe }> = [
   { label: '1m', value: '1m' },
@@ -31,12 +33,14 @@ const TEMP_CHART_REFRESH_MS = 15_000
 const CHART_TIME_ZONE = 'Europe/Riga'
 
 type TradingChartProps = {
+  chartLevels: ChartLevel[]
   selectedAsset?: SelectedAsset
   selectedPrice: MarketPrice | null
   selectedSymbol: string
 }
 
 export function TradingChart({
+  chartLevels,
   selectedAsset,
   selectedPrice,
   selectedSymbol,
@@ -44,6 +48,7 @@ export function TradingChart({
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const priceLinesRef = useRef<IPriceLine[]>([])
   const previousCandleKeyRef = useRef('')
   const previousSelectedSymbolRef = useRef('')
 
@@ -267,6 +272,49 @@ export function TradingChart({
       previousSelectedSymbolRef.current = selectedSymbol
     }
   }, [candleKey, candles, selectedSymbol])
+
+  useEffect(() => {
+    const series = seriesRef.current
+
+    if (!series) {
+      return
+    }
+
+    priceLinesRef.current.forEach((priceLine) => {
+      series.removePriceLine(priceLine)
+    })
+    priceLinesRef.current = []
+
+    if (!selectedSymbol) {
+      return
+    }
+
+    const priceLines = chartLevels.map((level) =>
+      series.createPriceLine({
+        id: level.id,
+        price: level.price,
+        color: level.color,
+        lineWidth: 1,
+        lineStyle:
+          level.lineStyle === 'solid' ? LineStyle.Solid : LineStyle.Dashed,
+        lineVisible: true,
+        axisLabelVisible: true,
+        title: level.label,
+      }),
+    )
+
+    priceLinesRef.current = priceLines
+
+    return () => {
+      priceLines.forEach((priceLine) => {
+        series.removePriceLine(priceLine)
+      })
+
+      if (priceLinesRef.current === priceLines) {
+        priceLinesRef.current = []
+      }
+    }
+  }, [chartLevels, selectedSymbol])
 
   return (
     <section className="rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)] flex h-full flex-col">

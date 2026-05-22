@@ -23,7 +23,9 @@ import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
+import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
@@ -47,6 +49,9 @@ class PositionMarketDataUpdateServiceTest {
   @Mock
   private TradingAccountRepository tradingAccountRepository;
 
+  @Mock
+  private OrderPublisher orderPublisher;
+
   private PositionMarketDataUpdateService service;
   private TradingAccount account;
 
@@ -56,6 +61,7 @@ class PositionMarketDataUpdateServiceTest {
         positionRepository,
         orderRepository,
         positionPublisher,
+        orderPublisher,
         tradingAccountRepository);
     account = new TradingAccount(new User("test@example.com", "hash"));
   }
@@ -92,6 +98,7 @@ class PositionMarketDataUpdateServiceTest {
     ArgumentCaptor<PositionResponse> responseCaptor = ArgumentCaptor.forClass(PositionResponse.class);
     verify(orderRepository).save(orderCaptor.capture());
     verify(positionPublisher).publishPositionUpdate(any(), responseCaptor.capture());
+    verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
 
     assertThat(orderCaptor.getValue().getSide()).isEqualTo(OrderSide.SELL);
     assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.FILLED);

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { cancelOrder, getOrders, type OrderResponse } from '../api/orderApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
+import { getCurrentUser } from '../../../auth/authApi'
+import { subscribeToOrderUpdates } from '../api/orderStream'
 
-const ORDER_REFRESH_MS = 15_000
+const ORDER_REFRESH_MS = 60_000
 const ORDER_PAGE_SIZE = 10
 
 type OrdersTableProps = {
@@ -17,6 +19,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [cancelingOrderId, setCancelingOrderId] = useState('')
   const [error, setError] = useState('')
+  const [userId, setUserId] = useState('')
 
   const loadOrders = useCallback(() => {
     getOrders(page, ORDER_PAGE_SIZE)
@@ -37,7 +40,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
   useEffect(() => {
     loadOrders()
 
-    // Temporary polling until order websocket updates or shared trade state exist.
+    // Recovery polling; order changes arrive over websocket.
     const intervalId = window.setInterval(loadOrders, ORDER_REFRESH_MS)
 
     return () => {
@@ -50,6 +53,36 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
       loadOrders()
     }
   }, [loadOrders, refreshKey])
+
+  useEffect(() => {
+    let isMounted = true
+
+    getCurrentUser()
+      .then((user) => {
+        if (isMounted) {
+          setUserId(user.id)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUserId('')
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!userId) {
+      return
+    }
+
+    return subscribeToOrderUpdates(userId, (orderUpdate) => {
+      setOrders((currentOrders) => patchOrder(currentOrders, orderUpdate))
+    })
+  }, [userId])
 
   async function handleCancelOrder(orderId: string) {
     setCancelingOrderId(orderId)
@@ -291,6 +324,25 @@ function filledColumnText(order: OrderResponse) {
   }
 
   return formatEnumLabel(order.status)
+}
+
+function patchOrder(orders: OrderResponse[], orderUpdate: OrderResponse) {
+  const existingIndex = orders.findIndex((order) => order.id === orderUpdate.id)
+
+  if (existingIndex === -1) {
+    return sortOrders([orderUpdate, ...orders]).slice(0, ORDER_PAGE_SIZE)
+  }
+
+  const nextOrders = [...orders]
+  nextOrders[existingIndex] = orderUpdate
+  return sortOrders(nextOrders)
+}
+
+function sortOrders(orders: OrderResponse[]) {
+  return [...orders].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  )
 }
 
 function statusClass(status: string) {

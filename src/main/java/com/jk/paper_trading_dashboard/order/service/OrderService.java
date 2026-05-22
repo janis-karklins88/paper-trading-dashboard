@@ -20,6 +20,7 @@ import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.dto.PlaceOrderRequest;
 import com.jk.paper_trading_dashboard.order.exception.InvalidOrderException;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
@@ -47,6 +48,7 @@ public class OrderService {
   private final PositionService positionService;
   private final MarketPriceService marketPriceService;
   private final PositionPublisher positionPublisher;
+  private final OrderPublisher orderPublisher;
 
   @Transactional
   public OrderResponse placeOrder(UUID userId, PlaceOrderRequest request) {
@@ -54,7 +56,7 @@ public class OrderService {
 
     return switch (request.type()) {
       case MARKET -> placeMarketOrder(userId, account, request);
-      case LIMIT -> placeLimitOrder(account, request);
+      case LIMIT -> placeLimitOrder(userId, account, request);
     };
   }
 
@@ -89,10 +91,12 @@ public class OrderService {
 
     orderRepository.save(order);
 
-    return OrderResponse.from(order);
+    OrderResponse response = OrderResponse.from(order);
+    orderPublisher.publishOrderUpdate(userId, response);
+    return response;
   }
 
-  private OrderResponse placeLimitOrder(TradingAccount account, PlaceOrderRequest request) {
+  private OrderResponse placeLimitOrder(UUID userId, TradingAccount account, PlaceOrderRequest request) {
     validateLimitOrder(account, request);
 
     Order order = Order.pendingLimitOrder(
@@ -113,7 +117,9 @@ public class OrderService {
     order.markOpen();
     orderRepository.save(order);
 
-    return OrderResponse.from(order);
+    OrderResponse response = OrderResponse.from(order);
+    orderPublisher.publishOrderUpdate(userId, response);
+    return response;
   }
 
   private void validateMarketOrder(TradingAccount account, PlaceOrderRequest request) {
@@ -278,7 +284,9 @@ public class OrderService {
     }
 
     order.markCanceled();
-    return OrderResponse.from(order);
+    OrderResponse response = OrderResponse.from(order);
+    orderPublisher.publishOrderUpdate(userId, response);
+    return response;
   }
 
   private UUID getTradingAccountId(UUID userId) {

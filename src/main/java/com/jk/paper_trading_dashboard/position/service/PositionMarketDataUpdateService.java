@@ -10,7 +10,9 @@ import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepositor
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
+import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
@@ -33,6 +35,7 @@ public class PositionMarketDataUpdateService {
   private final PositionRepository positionRepository;
   private final OrderRepository orderRepository;
   private final PositionPublisher positionPublisher;
+  private final OrderPublisher orderPublisher;
   private final TradingAccountRepository tradingAccountRepository;
 
   @Transactional
@@ -69,6 +72,7 @@ public class PositionMarketDataUpdateService {
     BigDecimal feeAmount = calculateFee(closingOrder);
     closingOrder.applyFee(feeAmount);
     orderRepository.save(closingOrder);
+    orderPublisher.publishOrderUpdate(account.getUser().getId(), OrderResponse.from(closingOrder));
 
     BigDecimal closedUnrealizedPnl = position.getUnrealizedPnl();
     position.setCurrentPrice(executionPrice);

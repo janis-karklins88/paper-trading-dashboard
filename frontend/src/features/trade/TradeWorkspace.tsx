@@ -5,6 +5,7 @@ import { TradeTicket } from './components/TradeTicket'
 import { TradingChart } from './components/TradingChart'
 import { Watchlist } from './components/Watchlist'
 import { trackActiveSymbol } from './api/marketDataApi'
+import { useChartLevels } from './hooks/useChartLevels'
 import { useSelectedMarketPrice } from './hooks/useSelectedMarketPrice'
 import type { SelectedAsset } from './types'
 
@@ -14,6 +15,7 @@ export function TradeWorkspace() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
   const [ordersRefreshKey, setOrdersRefreshKey] = useState(0)
   const selectedPrice = useSelectedMarketPrice(selectedSymbol)
+  const chartLevels = useChartLevels(selectedSymbol)
 
   const selectedAsset = useMemo<SelectedAsset | undefined>(() => {
     if (!selectedSymbol) {
@@ -63,6 +65,7 @@ export function TradeWorkspace() {
       <div className="grid gap-4 xl:grid-cols-12">
         <div className="min-w-0 xl:col-span-9">
           <TradingChart
+            chartLevels={chartLevels}
             selectedAsset={selectedAsset}
             selectedPrice={selectedPrice}
             selectedSymbol={selectedSymbol}

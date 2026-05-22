@@ -27,6 +27,7 @@ import com.jk.paper_trading_dashboard.order.domain.OrderType;
 import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.dto.PlaceOrderRequest;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
@@ -52,6 +53,9 @@ class OrderServiceTest {
   @Mock
   private PositionPublisher positionPublisher;
 
+  @Mock
+  private OrderPublisher orderPublisher;
+
   private OrderService orderService;
   private TradingAccount account;
   private UUID userId;
@@ -63,7 +67,8 @@ class OrderServiceTest {
         tradingAccountService,
         positionService,
         marketPriceService,
-        positionPublisher);
+        positionPublisher,
+        orderPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
     userId = UUID.randomUUID();
     when(tradingAccountService.getActiveAccount(userId)).thenReturn(account);
@@ -113,6 +118,7 @@ class OrderServiceTest {
     assertThat(positionRequestCaptor.getValue().currentPrice()).isEqualByComparingTo("250");
     assertThat(positionRequestCaptor.getValue().takeProfitPrice()).isEqualByComparingTo("300");
     assertThat(positionRequestCaptor.getValue().stopLossPrice()).isEqualByComparingTo("220");
+    verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
   }
 
   @Test
@@ -137,5 +143,6 @@ class OrderServiceTest {
 
     verify(positionService, never()).createPositionForAccount(any(), any());
     verify(marketPriceService, never()).refreshPrice(any());
+    verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
   }
 }

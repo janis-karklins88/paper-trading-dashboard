@@ -12,7 +12,9 @@ import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
 import com.jk.paper_trading_dashboard.order.domain.OrderType;
+import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
@@ -36,6 +38,7 @@ public class LimitOrderExecutionService {
   private final TradingAccountRepository tradingAccountRepository;
   private final PositionService positionService;
   private final PositionPublisher positionPublisher;
+  private final OrderPublisher orderPublisher;
 
   @Transactional
   public void executeLimitOrder(UUID orderId, BigDecimal marketPrice) {
@@ -58,6 +61,7 @@ public class LimitOrderExecutionService {
         createPositionRequest(order, marketPrice, executionPrice));
     account.applyPositionOpen(position.getUnrealizedPnl());
     positionPublisher.publishPositionUpdate(account.getUser().getId(), PositionResponse.from(position));
+    orderPublisher.publishOrderUpdate(account.getUser().getId(), OrderResponse.from(order));
   }
 
   private boolean isExecutableLimitOrder(Order order, BigDecimal executionPrice) {

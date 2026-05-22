@@ -23,7 +23,9 @@ import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
+import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
+import com.jk.paper_trading_dashboard.order.ws.OrderPublisher;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
@@ -51,6 +53,9 @@ class PositionServiceTest {
   @Mock
   private PositionPublisher positionPublisher;
 
+  @Mock
+  private OrderPublisher orderPublisher;
+
   private PositionService positionService;
   private TradingAccount account;
   private UUID userId;
@@ -62,7 +67,8 @@ class PositionServiceTest {
         orderRepository,
         tradingAccountService,
         marketPriceService,
-        positionPublisher);
+        positionPublisher,
+        orderPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
     account.reserveMargin(new BigDecimal("1000"));
     userId = UUID.randomUUID();
@@ -99,6 +105,7 @@ class PositionServiceTest {
     assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.FILLED);
     assertThat(orderCaptor.getValue().getFilledPrice()).isEqualByComparingTo("254.87250000");
     assertThat(orderCaptor.getValue().getFeeAmount()).isEqualByComparingTo("2.54872500");
+    verify(orderPublisher).publishOrderUpdate(userId, OrderResponse.from(orderCaptor.getValue()));
     verify(positionPublisher).publishPositionUpdate(userId, response);
   }
 

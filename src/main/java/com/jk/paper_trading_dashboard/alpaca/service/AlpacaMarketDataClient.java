@@ -173,23 +173,6 @@ public class AlpacaMarketDataClient implements MarketDataClient {
         .orElse(null);
   }
 
-  private LatestTrade getTradeForSymbol(Map<String, LatestTrade> tradesBySymbol, String symbol) {
-    LatestTrade trade = tradesBySymbol.get(symbol);
-
-    if (trade != null) {
-      return trade;
-    }
-
-    String symbolWithoutSeparator = symbol.replace("/", "");
-    return tradesBySymbol.entrySet()
-        .stream()
-        .filter(entry -> entry.getKey().equalsIgnoreCase(symbol)
-            || entry.getKey().replace("/", "").equalsIgnoreCase(symbolWithoutSeparator))
-        .map(Map.Entry::getValue)
-        .findFirst()
-        .orElse(null);
-  }
-
   private Orderbook getOrderbookForSymbol(Map<String, Orderbook> orderbooksBySymbol, String symbol) {
     Orderbook orderbook = orderbooksBySymbol.get(symbol);
 
@@ -234,11 +217,6 @@ public class AlpacaMarketDataClient implements MarketDataClient {
 
   private record BarsResponse(
       List<AlpacaBar> bars) {
-
-  }
-
-  private record CryptoLatestTradesResponse(
-      Map<String, LatestTrade> trades) {
 
   }
 
