@@ -30,6 +30,8 @@ export function TradeTicket({
   const [marginAmount, setMarginAmount] = useState('')
   const [leverage, setLeverage] = useState('1')
   const [limitPrice, setLimitPrice] = useState('')
+  const [takeProfitPrice, setTakeProfitPrice] = useState('')
+  const [stopLossPrice, setStopLossPrice] = useState('')
   const [tradingAccount, setTradingAccount] =
     useState<TradingAccountResponse | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -44,6 +46,8 @@ export function TradeTicket({
     Number(marginAmount) > 0 &&
     Number(leverage) >= 1 &&
     (orderType === 'market' || Number(limitPrice) > 0) &&
+    isOptionalPositivePrice(takeProfitPrice) &&
+    isOptionalPositivePrice(stopLossPrice) &&
     !isSubmitting
 
   useEffect(() => {
@@ -97,8 +101,8 @@ export function TradeTicket({
         marginAmount,
         leverage,
         limitPrice: orderType === 'limit' ? limitPrice : null,
-        takeProfitPrice: null,
-        stopLossPrice: null,
+        takeProfitPrice: normalizeOptionalPrice(takeProfitPrice),
+        stopLossPrice: normalizeOptionalPrice(stopLossPrice),
       })
 
       setLastOrder(order)
@@ -242,10 +246,11 @@ export function TradeTicket({
             Take profit
             <input
               className={fieldInputClass}
-              disabled
               inputMode="decimal"
-              placeholder="Later"
+              onChange={(event) => setTakeProfitPrice(event.target.value)}
+              placeholder="Optional"
               type="text"
+              value={takeProfitPrice}
             />
           </label>
 
@@ -253,10 +258,11 @@ export function TradeTicket({
             Stop loss
             <input
               className={fieldInputClass}
-              disabled
               inputMode="decimal"
-              placeholder="Later"
+              onChange={(event) => setStopLossPrice(event.target.value)}
+              placeholder="Optional"
               type="text"
+              value={stopLossPrice}
             />
           </label>
         </div>
@@ -326,6 +332,19 @@ function formatMoney(value?: number | string | null) {
     currency: 'USD',
     maximumFractionDigits: 8,
   }).format(numericValue)
+}
+
+function isOptionalPositivePrice(value: string) {
+  if (!value.trim()) {
+    return true
+  }
+
+  return Number(value) > 0
+}
+
+function normalizeOptionalPrice(value: string) {
+  const trimmedValue = value.trim()
+  return trimmedValue ? trimmedValue : null
 }
 
 const fieldLabelClass = 'grid gap-2 text-sm font-semibold text-[#dce8ff]'

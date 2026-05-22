@@ -111,6 +111,8 @@ class OrderServiceTest {
     assertThat(positionRequestCaptor.getValue().side()).isEqualTo(PositionSide.LONG);
     assertThat(positionRequestCaptor.getValue().avgEntryPrice()).isEqualByComparingTo("250.12500000");
     assertThat(positionRequestCaptor.getValue().currentPrice()).isEqualByComparingTo("250");
+    assertThat(positionRequestCaptor.getValue().takeProfitPrice()).isEqualByComparingTo("300");
+    assertThat(positionRequestCaptor.getValue().stopLossPrice()).isEqualByComparingTo("220");
   }
 
   @Test

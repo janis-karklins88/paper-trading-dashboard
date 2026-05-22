@@ -15,6 +15,19 @@ public record CreatePositionRequest(
     @NotNull @DecimalMin("0.00000001") BigDecimal avgEntryPrice,
     @NotNull @DecimalMin("0.00000001") BigDecimal currentPrice,
     @NotNull @DecimalMin("0.00000001") BigDecimal marginUsed,
-    @NotNull @DecimalMin("1.00") BigDecimal leverage) {
+    @NotNull @DecimalMin("1.00") BigDecimal leverage,
+    @DecimalMin("0.00000001") BigDecimal takeProfitPrice,
+    @DecimalMin("0.00000001") BigDecimal stopLossPrice) {
+
+  public CreatePositionRequest(
+      String symbol,
+      PositionSide side,
+      BigDecimal quantity,
+      BigDecimal avgEntryPrice,
+      BigDecimal currentPrice,
+      BigDecimal marginUsed,
+      BigDecimal leverage) {
+    this(symbol, side, quantity, avgEntryPrice, currentPrice, marginUsed, leverage, null, null);
+  }
 
 }

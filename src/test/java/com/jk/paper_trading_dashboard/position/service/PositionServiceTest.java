@@ -28,6 +28,7 @@ import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
+import com.jk.paper_trading_dashboard.position.dto.UpdatePositionExitPricesRequest;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
 import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.user.domain.User;
@@ -66,7 +67,6 @@ class PositionServiceTest {
     account.reserveMargin(new BigDecimal("1000"));
     userId = UUID.randomUUID();
     when(tradingAccountService.getActiveAccount(userId)).thenReturn(account);
-    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
   }
 
   @Test
@@ -81,6 +81,7 @@ class PositionServiceTest {
         new BigDecimal("255"),
         new BigDecimal("1000"),
         new BigDecimal("5"));
+    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
     when(positionRepository.findByIdAndTradingAccountId(positionId, account.getId()))
         .thenReturn(Optional.of(position));
     when(marketPriceService.refreshPrice("TSLA")).thenReturn(new MarketPrice("TSLA", new BigDecimal("255")));
@@ -98,6 +99,31 @@ class PositionServiceTest {
     assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.FILLED);
     assertThat(orderCaptor.getValue().getFilledPrice()).isEqualByComparingTo("254.87250000");
     assertThat(orderCaptor.getValue().getFeeAmount()).isEqualByComparingTo("2.54872500");
+    verify(positionPublisher).publishPositionUpdate(userId, response);
+  }
+
+  @Test
+  void updateExitPricesChangesOpenPositionAndPublishesUpdate() {
+    UUID positionId = UUID.randomUUID();
+    Position position = new Position(
+        account.getId(),
+        "TSLA",
+        PositionSide.LONG,
+        new BigDecimal("20"),
+        new BigDecimal("250"),
+        new BigDecimal("255"),
+        new BigDecimal("1000"),
+        new BigDecimal("5"));
+    when(positionRepository.findByIdAndTradingAccountId(positionId, account.getId()))
+        .thenReturn(Optional.of(position));
+
+    PositionResponse response = positionService.updateExitPrices(
+        userId,
+        positionId,
+        new UpdatePositionExitPricesRequest(new BigDecimal("300"), new BigDecimal("220")));
+
+    assertThat(response.takeProfitPrice()).isEqualByComparingTo("300");
+    assertThat(response.stopLossPrice()).isEqualByComparingTo("220");
     verify(positionPublisher).publishPositionUpdate(userId, response);
   }
 }

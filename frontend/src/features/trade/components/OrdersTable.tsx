@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { cancelOrder, getOrders, type OrderResponse } from '../api/orderApi'
+import { formatOptionalPrice } from '../../../utils/formatters'
 
 const ORDER_REFRESH_MS = 15_000
 const ORDER_PAGE_SIZE = 10
@@ -78,16 +79,19 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
       </div>
 
       <div className="watchlist-scroll max-w-full overflow-x-auto rounded-md border border-[#1e293b]">
-        <table className="w-full min-w-220 border-collapse text-left text-[13px]">
+        <table className="w-full min-w-260 border-collapse text-left text-[13px]">
           <thead className="bg-[#0f1727] text-[#9db2d0]">
             <tr>
               <th className={headerCellClass}>Symbol</th>
               <th className={headerCellClass}>Side</th>
               <th className={headerCellClass}>Type</th>
               <th className={headerCellClass}>Status</th>
+              <th className={headerCellClass}>Qty</th>
+              <th className={headerCellClass}>Price</th>
               <th className={headerCellClass}>Leverage</th>
               <th className={headerCellClass}>Margin</th>
               <th className={headerCellClass}>Notional</th>
+              <th className={headerCellClass}>Fee</th>
               <th className={headerCellClass}>Placed</th>
               <th className={headerCellClass}>Filled</th>
             </tr>
@@ -130,6 +134,12 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
                     </span>
                   </td>
                   <td className={bodyCellClass}>
+                    {formatQuantity(order.quantity)}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {formatOrderPrice(order)}
+                  </td>
+                  <td className={bodyCellClass}>
                     {formatLeverage(order.leverage)}
                   </td>
                   <td className={bodyCellClass}>
@@ -137,6 +147,9 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
                   </td>
                   <td className={bodyCellClass}>
                     {formatMoney(order.notionalValue)}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {formatMoney(order.feeAmount)}
                   </td>
                   <td className={bodyCellClass}>
                     {formatDateTime(order.createdAt)}
@@ -161,7 +174,7 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
 
             {!isLoading && orders.length === 0 && (
               <tr className="border-t border-[#1e293b]">
-                <td className="px-4 py-8 text-center text-[#9db2d0]" colSpan={9}>
+                <td className="px-4 py-8 text-center text-[#9db2d0]" colSpan={12}>
                   No orders yet
                 </td>
               </tr>
@@ -230,6 +243,26 @@ function formatMoney(value: string | number | null) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(numericValue)
+}
+
+function formatQuantity(value: string | number | null) {
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue)) {
+    return '--'
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 8,
+  }).format(numericValue)
+}
+
+function formatOrderPrice(order: OrderResponse) {
+  if (order.executionPrice !== null) {
+    return formatOptionalPrice(order.executionPrice)
+  }
+
+  return formatOptionalPrice(order.limitPrice)
 }
 
 function formatDateTime(value: string | null) {

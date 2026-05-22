@@ -74,6 +74,7 @@ public class OrderService {
 
     BigDecimal marketPrice = getMarketPrice(request.symbol());
     BigDecimal executionPrice = applySpread(marketPrice, request.side());
+    validateExitPrices(positionSide(request.side()), executionPrice, request.takeProfitPrice(), request.stopLossPrice());
     order.markFilled(executionPrice);
 
     BigDecimal feeAmount = calculateFee(order, MARKET_FEE_RATE);
@@ -140,6 +141,8 @@ public class OrderService {
       throw new InvalidOrderException("Limit order requires limit price");
     }
 
+    validateExitPrices(positionSide(request.side()), request.limitPrice(), request.takeProfitPrice(), request.stopLossPrice());
+
     BigDecimal estimatedFee = request.marginAmount()
         .multiply(request.leverage())
         .multiply(LIMIT_FEE_RATE)
@@ -165,6 +168,32 @@ public class OrderService {
     account.reserveMargin(marginAmount);
   }
 
+  private void validateExitPrices(
+      PositionSide side,
+      BigDecimal entryPrice,
+      BigDecimal takeProfitPrice,
+      BigDecimal stopLossPrice) {
+    if (side == PositionSide.LONG) {
+      if (takeProfitPrice != null && takeProfitPrice.compareTo(entryPrice) <= 0) {
+        throw new InvalidOrderException("Take profit must be greater than entry price for long orders");
+      }
+
+      if (stopLossPrice != null && stopLossPrice.compareTo(entryPrice) >= 0) {
+        throw new InvalidOrderException("Stop loss must be less than entry price for long orders");
+      }
+
+      return;
+    }
+
+    if (takeProfitPrice != null && takeProfitPrice.compareTo(entryPrice) >= 0) {
+      throw new InvalidOrderException("Take profit must be less than entry price for short orders");
+    }
+
+    if (stopLossPrice != null && stopLossPrice.compareTo(entryPrice) <= 0) {
+      throw new InvalidOrderException("Stop loss must be greater than entry price for short orders");
+    }
+  }
+
   private BigDecimal getMarketPrice(String symbol) {
     MarketPrice marketPrice = marketPriceService.refreshPrice(symbol);
 
@@ -187,7 +216,9 @@ public class OrderService {
         executionPrice,
         marketPrice,
         request.marginAmount(),
-        request.leverage());
+        request.leverage(),
+        request.takeProfitPrice(),
+        request.stopLossPrice());
   }
 
   private BigDecimal applySpread(BigDecimal marketPrice, OrderSide side) {

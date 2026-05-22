@@ -12,12 +12,19 @@ export type PositionResponse = {
   realizedPnl: string | number
   marginUsed: string | number
   leverage: string | number
+  takeProfitPrice: string | number | null
+  stopLossPrice: string | number | null
   openedAt: string
   closedAt: string | null
   updatedAt: string
 }
 
 export type PositionStatus = 'OPEN' | 'CLOSED'
+
+export type UpdatePositionExitPricesPayload = {
+  takeProfitPrice: string | null
+  stopLossPrice: string | null
+}
 
 export type PageResponse<T> = {
   content: T[]
@@ -65,6 +72,28 @@ export async function closePosition(positionId: string) {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+  })
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response))
+  }
+
+  return (await response.json()) as PositionResponse
+}
+
+export async function updatePositionExitPrices(
+  positionId: string,
+  payload: UpdatePositionExitPricesPayload,
+) {
+  const token = getStoredAuthToken()
+
+  const response = await fetch(`/api/positions/${positionId}/exit-prices`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {

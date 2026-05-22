@@ -5,19 +5,23 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
+import com.jk.paper_trading_dashboard.position.dto.UpdatePositionExitPricesRequest;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
 import com.jk.paper_trading_dashboard.shared.dto.PageResponse;
 import com.jk.paper_trading_dashboard.shared.security.UserPrincipal;
 
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/positions")
@@ -47,5 +51,13 @@ public class PositionController {
       @AuthenticationPrincipal UserPrincipal user,
       @PathVariable UUID id) {
     return ResponseEntity.ok(positionService.closePosition(user.userId(), id));
+  }
+
+  @PatchMapping("/{id}/exit-prices")
+  public ResponseEntity<PositionResponse> updateExitPrices(
+      @AuthenticationPrincipal UserPrincipal user,
+      @PathVariable UUID id,
+      @Valid @RequestBody UpdatePositionExitPricesRequest request) {
+    return ResponseEntity.ok(positionService.updateExitPrices(user.userId(), id, request));
   }
 }

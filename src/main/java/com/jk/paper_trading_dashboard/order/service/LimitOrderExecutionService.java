@@ -86,7 +86,9 @@ public class LimitOrderExecutionService {
         executionPrice,
         marketPrice,
         order.getMarginAmount(),
-        order.getLeverage());
+        order.getLeverage(),
+        order.getTakeProfitPrice(),
+        order.getStopLossPrice());
   }
 
   private BigDecimal applySpread(BigDecimal marketPrice, OrderSide side) {

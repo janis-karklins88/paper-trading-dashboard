@@ -46,6 +46,12 @@ public class Position {
   @Column(nullable = false, precision = 10, scale = 2)
   private BigDecimal leverage;
 
+  @Column(precision = 19, scale = 8)
+  private BigDecimal takeProfitPrice;
+
+  @Column(precision = 19, scale = 8)
+  private BigDecimal stopLossPrice;
+
   @Column(nullable = false, precision = 19, scale = 8)
   private BigDecimal unrealizedPnl;
 
@@ -77,21 +83,50 @@ public class Position {
       BigDecimal currentPrice,
       BigDecimal marginUsed,
       BigDecimal leverage) {
+    this(
+        tradingAccountId,
+        symbol,
+        side,
+        quantity,
+        avgEntryPrice,
+        currentPrice,
+        marginUsed,
+        leverage,
+        null,
+        null);
+  }
+
+  public Position(
+      UUID tradingAccountId,
+      String symbol,
+      PositionSide side,
+      BigDecimal quantity,
+      BigDecimal avgEntryPrice,
+      BigDecimal currentPrice,
+      BigDecimal marginUsed,
+      BigDecimal leverage,
+      BigDecimal takeProfitPrice,
+      BigDecimal stopLossPrice) {
     requirePositive(quantity, "quantity");
     requirePositive(avgEntryPrice, "avgEntryPrice");
     requirePositive(currentPrice, "currentPrice");
     requirePositive(marginUsed, "marginUsed");
     requirePositive(leverage, "leverage");
+    requirePositiveIfPresent(takeProfitPrice, "takeProfitPrice");
+    requirePositiveIfPresent(stopLossPrice, "stopLossPrice");
 
     this.id = UUID.randomUUID();
     this.tradingAccountId = Objects.requireNonNull(tradingAccountId, "tradingAccountId is required");
     this.symbol = Symbols.normalize(symbol);
     this.side = Objects.requireNonNull(side, "side is required");
+    validateExitPrices(this.side, avgEntryPrice, takeProfitPrice, stopLossPrice);
     this.quantity = quantity;
     this.avgEntryPrice = avgEntryPrice;
     this.currentPrice = currentPrice;
     this.marginUsed = marginUsed;
     this.leverage = leverage;
+    this.takeProfitPrice = takeProfitPrice;
+    this.stopLossPrice = stopLossPrice;
     this.unrealizedPnl = calculateUnrealizedPnl();
     this.realizedPnl = BigDecimal.ZERO;
     this.status = PositionStatus.OPEN;
@@ -122,6 +157,46 @@ public class Position {
     };
   }
 
+  public boolean shouldTakeProfit(BigDecimal marketPrice) {
+    if (takeProfitPrice == null) {
+      return false;
+    }
+
+    requirePositive(marketPrice, "marketPrice");
+
+    return switch (side) {
+      case LONG -> marketPrice.compareTo(takeProfitPrice) >= 0;
+      case SHORT -> marketPrice.compareTo(takeProfitPrice) <= 0;
+    };
+  }
+
+  public boolean shouldStopLoss(BigDecimal marketPrice) {
+    if (stopLossPrice == null) {
+      return false;
+    }
+
+    requirePositive(marketPrice, "marketPrice");
+
+    return switch (side) {
+      case LONG -> marketPrice.compareTo(stopLossPrice) <= 0;
+      case SHORT -> marketPrice.compareTo(stopLossPrice) >= 0;
+    };
+  }
+
+  public void updateExitPrices(BigDecimal takeProfitPrice, BigDecimal stopLossPrice) {
+    if (this.status != PositionStatus.OPEN) {
+      throw new IllegalStateException("Only open positions can update exit prices");
+    }
+
+    requirePositiveIfPresent(takeProfitPrice, "takeProfitPrice");
+    requirePositiveIfPresent(stopLossPrice, "stopLossPrice");
+    validateExitPrices(this.side, this.avgEntryPrice, takeProfitPrice, stopLossPrice);
+
+    this.takeProfitPrice = takeProfitPrice;
+    this.stopLossPrice = stopLossPrice;
+    this.updatedAt = Instant.now();
+  }
+
   private BigDecimal calculateUnrealizedPnl() {
     return calculateUnrealizedPnl(currentPrice);
   }
@@ -129,6 +204,38 @@ public class Position {
   private static void requirePositive(BigDecimal value, String fieldName) {
     if (value == null || value.signum() <= 0) {
       throw new IllegalArgumentException(fieldName + " must be greater than zero");
+    }
+  }
+
+  private static void requirePositiveIfPresent(BigDecimal value, String fieldName) {
+    if (value != null && value.signum() <= 0) {
+      throw new IllegalArgumentException(fieldName + " must be greater than zero");
+    }
+  }
+
+  private static void validateExitPrices(
+      PositionSide side,
+      BigDecimal entryPrice,
+      BigDecimal takeProfitPrice,
+      BigDecimal stopLossPrice) {
+    if (side == PositionSide.LONG) {
+      if (takeProfitPrice != null && takeProfitPrice.compareTo(entryPrice) <= 0) {
+        throw new IllegalArgumentException("takeProfitPrice must be greater than entry price for long positions");
+      }
+
+      if (stopLossPrice != null && stopLossPrice.compareTo(entryPrice) >= 0) {
+        throw new IllegalArgumentException("stopLossPrice must be less than entry price for long positions");
+      }
+
+      return;
+    }
+
+    if (takeProfitPrice != null && takeProfitPrice.compareTo(entryPrice) >= 0) {
+      throw new IllegalArgumentException("takeProfitPrice must be less than entry price for short positions");
+    }
+
+    if (stopLossPrice != null && stopLossPrice.compareTo(entryPrice) <= 0) {
+      throw new IllegalArgumentException("stopLossPrice must be greater than entry price for short positions");
     }
   }
 
@@ -202,6 +309,22 @@ public class Position {
 
   public void setLeverage(BigDecimal leverage) {
     this.leverage = leverage;
+  }
+
+  public BigDecimal getTakeProfitPrice() {
+    return takeProfitPrice;
+  }
+
+  public void setTakeProfitPrice(BigDecimal takeProfitPrice) {
+    this.takeProfitPrice = takeProfitPrice;
+  }
+
+  public BigDecimal getStopLossPrice() {
+    return stopLossPrice;
+  }
+
+  public void setStopLossPrice(BigDecimal stopLossPrice) {
+    this.stopLossPrice = stopLossPrice;
   }
 
   public BigDecimal getUnrealizedPnl() {

@@ -21,6 +21,7 @@ import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
 import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
+import com.jk.paper_trading_dashboard.position.dto.UpdatePositionExitPricesRequest;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
 import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.shared.dto.PageResponse;
@@ -63,7 +64,9 @@ public class PositionService {
         request.avgEntryPrice(),
         request.currentPrice(),
         request.marginUsed(),
-        request.leverage());
+        request.leverage(),
+        request.takeProfitPrice(),
+        request.stopLossPrice());
 
     return positionRepository.save(position);
   }
@@ -108,6 +111,31 @@ public class PositionService {
         .orElseThrow(() -> new NotFoundException("Position not found"));
 
     return toLiveResponse(position);
+  }
+
+  @Transactional
+  public PositionResponse updateExitPrices(
+      UUID userId,
+      UUID positionId,
+      UpdatePositionExitPricesRequest request) {
+    UUID tradingAccountId = getTradingAccountId(userId);
+
+    Position position = positionRepository.findByIdAndTradingAccountId(positionId, tradingAccountId)
+        .orElseThrow(() -> new NotFoundException("Position not found"));
+
+    if (position.getStatus() != PositionStatus.OPEN) {
+      throw new BadRequestException("Only open positions can update exit prices");
+    }
+
+    try {
+      position.updateExitPrices(request.takeProfitPrice(), request.stopLossPrice());
+    } catch (IllegalArgumentException exception) {
+      throw new BadRequestException(exception.getMessage());
+    }
+
+    PositionResponse response = toLiveResponse(position);
+    positionPublisher.publishPositionUpdate(userId, response);
+    return response;
   }
 
   @Transactional

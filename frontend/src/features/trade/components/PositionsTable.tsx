@@ -3,6 +3,7 @@ import {
   closePosition,
   getClosedPositions,
   getOpenPositions,
+  updatePositionExitPrices,
   type PositionResponse,
 } from '../api/positionApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
@@ -11,6 +12,12 @@ import { subscribeToPositionUpdates } from '../api/positionStream'
 
 const POSITION_REFRESH_MS = 60_000
 const POSITION_PAGE_SIZE = 10
+
+type ExitPriceEditor = {
+  positionId: string
+  takeProfitPrice: string
+  stopLossPrice: string
+}
 
 type PositionsTableProps = {
   onPositionClosed?: () => void
@@ -26,6 +33,9 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
   const [closedTotalPositions, setClosedTotalPositions] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [closingPositionId, setClosingPositionId] = useState('')
+  const [savingExitPositionId, setSavingExitPositionId] = useState('')
+  const [exitPriceEditor, setExitPriceEditor] =
+    useState<ExitPriceEditor | null>(null)
   const [error, setError] = useState('')
   const [userId, setUserId] = useState('')
 
@@ -148,6 +158,51 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
     }
   }
 
+  function startEditingExitPrices(position: PositionResponse) {
+    setExitPriceEditor({
+      positionId: position.id,
+      takeProfitPrice: editablePriceValue(position.takeProfitPrice),
+      stopLossPrice: editablePriceValue(position.stopLossPrice),
+    })
+  }
+
+  async function handleSaveExitPrices(positionId: string) {
+    if (!exitPriceEditor || exitPriceEditor.positionId !== positionId) {
+      return
+    }
+
+    if (
+      !isOptionalPositivePrice(exitPriceEditor.takeProfitPrice) ||
+      !isOptionalPositivePrice(exitPriceEditor.stopLossPrice)
+    ) {
+      setError('TP and SL must be empty or greater than zero')
+      return
+    }
+
+    setSavingExitPositionId(positionId)
+    setError('')
+
+    try {
+      const updatedPosition = await updatePositionExitPrices(positionId, {
+        takeProfitPrice: normalizeOptionalPrice(exitPriceEditor.takeProfitPrice),
+        stopLossPrice: normalizeOptionalPrice(exitPriceEditor.stopLossPrice),
+      })
+
+      setPositions((currentPositions) =>
+        patchPosition(currentPositions, updatedPosition),
+      )
+      setExitPriceEditor(null)
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to update exit prices',
+      )
+    } finally {
+      setSavingExitPositionId('')
+    }
+  }
+
   return (
     <section className="min-w-0 rounded-lg border border-[#21304a] bg-[#121b2d]/90 p-5 shadow-[0_18px_50px_rgba(3,8,20,0.22)]">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -158,7 +213,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
       </div>
 
       <div className="watchlist-scroll max-w-full overflow-x-auto rounded-md border border-[#1e293b]">
-        <table className="w-full min-w-220 border-collapse text-left text-[13px]">
+        <table className="w-full min-w-240 border-collapse text-left text-[13px]">
           <thead className="bg-[#0f1727] text-[#9db2d0]">
             <tr>
               <th className={headerCellClass}>Symbol</th>
@@ -166,8 +221,9 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
               <th className={headerCellClass}>Status</th>
               <th className={headerCellClass}>Qty</th>
               <th className={headerCellClass}>Value</th>
+              <th className={headerCellClass}>Margin</th>
               <th className={headerCellClass}>Entry price</th>
-              <th className={headerCellClass}>Current price</th>
+              <th className={headerCellClass}>Mark / Exit</th>
               <th className={headerCellClass}>TP</th>
               <th className={headerCellClass}>SL</th>
               <th className={headerCellClass}>PnL</th>
@@ -181,6 +237,9 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
               const pnl = Number(pnlValue)
               const pnlPercent = calculatePnlPercent(position)
               const isClosing = closingPositionId === position.id
+              const isEditingExitPrices =
+                exitPriceEditor?.positionId === position.id
+              const isSavingExitPrices = savingExitPositionId === position.id
 
               return (
                 <tr className="border-t border-[#1e293b]" key={position.id}>
@@ -218,13 +277,60 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                     {formatMoney(calculatePositionValue(position))}
                   </td>
                   <td className={bodyCellClass}>
+                    {formatMoney(position.marginUsed)}
+                  </td>
+                  <td className={bodyCellClass}>
                     {formatOptionalPrice(position.avgEntryPrice)}
                   </td>
                   <td className={bodyCellClass}>
                     {formatOptionalPrice(position.currentPrice)}
                   </td>
-                  <td className={bodyCellClass}>--</td>
-                  <td className={bodyCellClass}>--</td>
+                  <td className={bodyCellClass}>
+                    {isEditingExitPrices ? (
+                      <input
+                        className={exitPriceInputClass}
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          setExitPriceEditor((currentEditor) =>
+                            currentEditor
+                              ? {
+                                  ...currentEditor,
+                                  takeProfitPrice: event.target.value,
+                                }
+                              : currentEditor,
+                          )
+                        }
+                        placeholder="--"
+                        type="text"
+                        value={exitPriceEditor?.takeProfitPrice ?? ''}
+                      />
+                    ) : (
+                      formatOptionalPrice(position.takeProfitPrice)
+                    )}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {isEditingExitPrices ? (
+                      <input
+                        className={exitPriceInputClass}
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          setExitPriceEditor((currentEditor) =>
+                            currentEditor
+                              ? {
+                                  ...currentEditor,
+                                  stopLossPrice: event.target.value,
+                                }
+                              : currentEditor,
+                          )
+                        }
+                        placeholder="--"
+                        type="text"
+                        value={exitPriceEditor?.stopLossPrice ?? ''}
+                      />
+                    ) : (
+                      formatOptionalPrice(position.stopLossPrice)
+                    )}
+                  </td>
                   <td
                     className={[
                       'whitespace-nowrap px-3 py-2.5 font-bold',
@@ -241,14 +347,54 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
                     {position.status === 'OPEN' ? (
-                      <button
-                        className="min-h-7 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-2.5 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={isClosing}
-                        onClick={() => void handleClosePosition(position.id)}
-                        type="button"
-                      >
-                        {isClosing ? 'Closing' : 'Close'}
-                      </button>
+                      <div className="flex gap-1.5">
+                        {isEditingExitPrices ? (
+                          <>
+                            <button
+                              className={actionButtonClass}
+                              aria-label="Save exit prices"
+                              title="Save"
+                              disabled={isSavingExitPrices}
+                              onClick={() => void handleSaveExitPrices(position.id)}
+                              type="button"
+                            >
+                              {isSavingExitPrices ? '...' : '✓'}
+                            </button>
+                            <button
+                              className={secondaryButtonClass}
+                              aria-label="Cancel editing exit prices"
+                              title="Cancel"
+                              disabled={isSavingExitPrices}
+                              onClick={() => setExitPriceEditor(null)}
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className={secondaryButtonClass}
+                              aria-label="Edit exit prices"
+                              title="Edit TP/SL"
+                              onClick={() => startEditingExitPrices(position)}
+                              type="button"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              className={dangerButtonClass}
+                              aria-label="Close position"
+                              title="Close"
+                              disabled={isClosing}
+                              onClick={() => void handleClosePosition(position.id)}
+                              type="button"
+                            >
+                              {isClosing ? '...' : '×'}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-[#9db2d0]">
                         {formatDateTime(position.closedAt)}
@@ -263,7 +409,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
               <tr className="border-t border-[#1e293b]">
                 <td
                   className="px-4 py-8 text-center text-[#9db2d0]"
-                  colSpan={12}
+                  colSpan={13}
                 >
                   No positions yet
                 </td>
@@ -391,6 +537,27 @@ function getTimeOrZero(value: string | null) {
   return value ? new Date(value).getTime() : 0
 }
 
+function editablePriceValue(value: string | number | null) {
+  if (value === null) {
+    return ''
+  }
+
+  return String(value)
+}
+
+function isOptionalPositivePrice(value: string) {
+  if (!value.trim()) {
+    return true
+  }
+
+  return Number(value) > 0
+}
+
+function normalizeOptionalPrice(value: string) {
+  const trimmedValue = value.trim()
+  return trimmedValue ? trimmedValue : null
+}
+
 function formatEnumLabel(value: string) {
   return value
     .toLowerCase()
@@ -516,5 +683,13 @@ function PaginationControls({
 const headerCellClass =
   'whitespace-nowrap px-3 py-2.5 text-xs font-extrabold uppercase'
 const bodyCellClass = 'whitespace-nowrap px-3 py-2.5 text-[#9db2d0]'
+const exitPriceInputClass =
+  'h-7 w-24 rounded border border-[#21304a] bg-[#0d1627] px-2 text-xs font-semibold text-[#f7fbff] outline-none placeholder:text-[#6f829f] focus:border-[#6f84ff]'
+const actionButtonClass =
+  'grid size-7 place-items-center rounded-md border border-[#00d084]/30 bg-[#00d084]/12 text-sm font-bold text-[#b9ffe9] transition hover:bg-[#00d084]/20 disabled:cursor-not-allowed disabled:opacity-60'
+const secondaryButtonClass =
+  'grid size-7 place-items-center rounded-md border border-[#21304a] bg-[#0f1727] text-sm font-bold text-[#dce8ff] transition hover:border-[#334666] hover:bg-[#131e31] disabled:cursor-not-allowed disabled:opacity-60'
+const dangerButtonClass =
+  'grid size-7 place-items-center rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 text-sm font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60'
 const paginationButtonClass =
   'min-h-8 rounded-md border border-[#21304a] bg-[#0f1727] px-3 text-[#dce8ff] transition hover:border-[#334666] hover:bg-[#131e31] disabled:cursor-not-allowed disabled:opacity-50'

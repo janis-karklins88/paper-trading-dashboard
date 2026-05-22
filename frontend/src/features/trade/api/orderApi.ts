@@ -7,8 +7,8 @@ export type PlaceOrderPayload = {
   marginAmount: string
   leverage: string
   limitPrice: string | null
-  takeProfitPrice: null
-  stopLossPrice: null
+  takeProfitPrice: string | null
+  stopLossPrice: string | null
 }
 
 export type OrderResponse = {
