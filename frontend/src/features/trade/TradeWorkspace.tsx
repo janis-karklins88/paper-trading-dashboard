@@ -64,6 +64,7 @@ export function TradeWorkspace() {
         <div className="min-w-0 xl:col-span-9">
           <TradingChart
             selectedAsset={selectedAsset}
+            selectedPrice={selectedPrice}
             selectedSymbol={selectedSymbol}
           />
         </div>

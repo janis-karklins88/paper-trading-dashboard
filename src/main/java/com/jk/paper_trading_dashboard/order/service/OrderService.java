@@ -23,7 +23,9 @@ import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
+import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
+import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.shared.dto.PageResponse;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
@@ -44,18 +46,19 @@ public class OrderService {
   private final TradingAccountService tradingAccountService;
   private final PositionService positionService;
   private final MarketPriceService marketPriceService;
+  private final PositionPublisher positionPublisher;
 
   @Transactional
   public OrderResponse placeOrder(UUID userId, PlaceOrderRequest request) {
     TradingAccount account = tradingAccountService.getActiveAccount(userId);
 
     return switch (request.type()) {
-      case MARKET -> placeMarketOrder(account, request);
+      case MARKET -> placeMarketOrder(userId, account, request);
       case LIMIT -> placeLimitOrder(account, request);
     };
   }
 
-  private OrderResponse placeMarketOrder(TradingAccount account, PlaceOrderRequest request) {
+  private OrderResponse placeMarketOrder(UUID userId, TradingAccount account, PlaceOrderRequest request) {
     validateMarketOrder(account, request);
 
     Order order = Order.pendingMarketOrder(
@@ -81,6 +84,7 @@ public class OrderService {
         account.getId(),
         createPositionRequest(request, order, marketPrice, executionPrice));
     account.applyPositionOpen(position.getUnrealizedPnl());
+    positionPublisher.publishPositionUpdate(userId, PositionResponse.from(position));
 
     orderRepository.save(order);
 

@@ -16,7 +16,9 @@ import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
+import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
+import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
 
 import jakarta.transaction.Transactional;
@@ -33,6 +35,7 @@ public class LimitOrderExecutionService {
   private final OrderRepository orderRepository;
   private final TradingAccountRepository tradingAccountRepository;
   private final PositionService positionService;
+  private final PositionPublisher positionPublisher;
 
   @Transactional
   public void executeLimitOrder(UUID orderId, BigDecimal marketPrice) {
@@ -54,6 +57,7 @@ public class LimitOrderExecutionService {
         account.getId(),
         createPositionRequest(order, marketPrice, executionPrice));
     account.applyPositionOpen(position.getUnrealizedPnl());
+    positionPublisher.publishPositionUpdate(account.getUser().getId(), PositionResponse.from(position));
   }
 
   private boolean isExecutableLimitOrder(Order order, BigDecimal executionPrice) {

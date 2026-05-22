@@ -14,6 +14,7 @@ import {
   getCandles,
   type CandleTimeframe,
   type MarketCandle,
+  type MarketPrice,
 } from '../api/marketDataApi'
 import { formatPrice } from '../../../utils/formatters'
 import type { SelectedAsset } from '../types'
@@ -31,11 +32,13 @@ const CHART_TIME_ZONE = 'Europe/Riga'
 
 type TradingChartProps = {
   selectedAsset?: SelectedAsset
+  selectedPrice: MarketPrice | null
   selectedSymbol: string
 }
 
 export function TradingChart({
   selectedAsset,
+  selectedPrice,
   selectedSymbol,
 }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
@@ -184,6 +187,58 @@ export function TradingChart({
   }, [selectedSymbol, timeframe])
 
   useEffect(() => {
+    if (
+      !selectedPrice ||
+      normalizeSymbol(selectedPrice.symbol) !== normalizeSymbol(selectedSymbol)
+    ) {
+      return
+    }
+
+    const livePrice = Number(selectedPrice.price)
+
+    if (!Number.isFinite(livePrice) || livePrice <= 0) {
+      return
+    }
+
+    setCandles((currentCandles) => {
+      if (currentCandles.length === 0) {
+        return currentCandles
+      }
+
+      const liveCandleStart = getCandleStartMs(
+        selectedPrice.updatedAt,
+        timeframe,
+      )
+      const lastCandle = currentCandles[currentCandles.length - 1]
+      const lastCandleStart = getCandleStartMs(lastCandle.timestamp, timeframe)
+
+      if (liveCandleStart === null || lastCandleStart === null) {
+        return updateLastCandle(currentCandles, livePrice)
+      }
+
+      if (liveCandleStart < lastCandleStart) {
+        return currentCandles
+      }
+
+      if (liveCandleStart > lastCandleStart) {
+        return [
+          ...currentCandles,
+          {
+            timestamp: new Date(liveCandleStart).toISOString(),
+            open: livePrice,
+            high: livePrice,
+            low: livePrice,
+            close: livePrice,
+            volume: 0,
+          },
+        ]
+      }
+
+      return updateLastCandle(currentCandles, livePrice)
+    })
+  }, [selectedPrice, selectedSymbol, timeframe])
+
+  useEffect(() => {
     if (!seriesRef.current) {
       return
     }
@@ -291,6 +346,61 @@ function isValidChartCandle(candle: CandlestickData<UTCTimestamp>) {
     Number.isFinite(candle.low) &&
     Number.isFinite(candle.close)
   )
+}
+
+function updateLastCandle(candles: MarketCandle[], livePrice: number) {
+  const nextCandles = [...candles]
+  const lastCandle = nextCandles[nextCandles.length - 1]
+  const lastHigh = Number(lastCandle.high)
+  const lastLow = Number(lastCandle.low)
+
+  nextCandles[nextCandles.length - 1] = {
+    ...lastCandle,
+    high: Number.isFinite(lastHigh) ? Math.max(lastHigh, livePrice) : livePrice,
+    low: Number.isFinite(lastLow) ? Math.min(lastLow, livePrice) : livePrice,
+    close: livePrice,
+  }
+
+  return nextCandles
+}
+
+function getCandleStartMs(timestamp: string, timeframe: CandleTimeframe) {
+  const timeMs = new Date(timestamp).getTime()
+
+  if (!Number.isFinite(timeMs)) {
+    return null
+  }
+
+  if (timeframe === '1d') {
+    const date = new Date(timeMs)
+    return Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+    )
+  }
+
+  const intervalMs = getTimeframeMs(timeframe)
+  return Math.floor(timeMs / intervalMs) * intervalMs
+}
+
+function getTimeframeMs(timeframe: CandleTimeframe) {
+  switch (timeframe) {
+    case '1m':
+      return 60_000
+    case '5m':
+      return 5 * 60_000
+    case '15m':
+      return 15 * 60_000
+    case '1h':
+      return 60 * 60_000
+    case '1d':
+      return 24 * 60 * 60_000
+  }
+}
+
+function normalizeSymbol(symbol: string) {
+  return symbol.trim().toUpperCase()
 }
 
 function formatAxisTime(time: Time, tickMarkType: TickMarkType) {

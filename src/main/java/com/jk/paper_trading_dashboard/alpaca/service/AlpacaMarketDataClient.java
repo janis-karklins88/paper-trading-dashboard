@@ -139,7 +139,8 @@ public class AlpacaMarketDataClient implements MarketDataClient {
         .retrieve()
         .body(CryptoBarsResponse.class);
 
-    List<AlpacaBar> bars = response == null || response.bars() == null ? null : getBarsForSymbol(response.bars(), symbol);
+    List<AlpacaBar> bars = response == null || response.bars() == null ? null
+        : getBarsForSymbol(response.bars(), symbol);
 
     if (bars == null) {
       return List.of();

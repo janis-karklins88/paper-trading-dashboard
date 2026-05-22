@@ -26,6 +26,7 @@ import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
+import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.user.domain.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +41,9 @@ class LimitOrderExecutionServiceTest {
   @Mock
   private PositionService positionService;
 
+  @Mock
+  private PositionPublisher positionPublisher;
+
   private LimitOrderExecutionService limitOrderExecutionService;
   private TradingAccount account;
 
@@ -48,7 +52,8 @@ class LimitOrderExecutionServiceTest {
     limitOrderExecutionService = new LimitOrderExecutionService(
         orderRepository,
         tradingAccountRepository,
-        positionService);
+        positionService,
+        positionPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
   }
 

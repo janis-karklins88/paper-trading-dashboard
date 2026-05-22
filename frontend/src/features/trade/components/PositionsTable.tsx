@@ -6,8 +6,10 @@ import {
   type PositionResponse,
 } from '../api/positionApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
+import { getCurrentUser } from '../../../auth/authApi'
+import { subscribeToPositionUpdates } from '../api/positionStream'
 
-const POSITION_REFRESH_MS = 15_000
+const POSITION_REFRESH_MS = 60_000
 const POSITION_PAGE_SIZE = 10
 
 type PositionsTableProps = {
@@ -25,6 +27,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [closingPositionId, setClosingPositionId] = useState('')
   const [error, setError] = useState('')
+  const [userId, setUserId] = useState('')
 
   const loadPositionsForPages = useCallback(
     async (nextOpenPage: number, nextClosedPage: number) => {
@@ -81,7 +84,7 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
 
     loadMountedPositions()
 
-    // Temporary polling until position websocket updates or shared trade state exist.
+    // Recovery polling; live open-position prices arrive over websocket.
     const intervalId = window.setInterval(
       loadMountedPositions,
       POSITION_REFRESH_MS,
@@ -92,6 +95,38 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
       window.clearInterval(intervalId)
     }
   }, [closedPage, openPage])
+
+  useEffect(() => {
+    let isMounted = true
+
+    getCurrentUser()
+      .then((user) => {
+        if (isMounted) {
+          setUserId(user.id)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUserId('')
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!userId) {
+      return
+    }
+
+    return subscribeToPositionUpdates(userId, (positionUpdate) => {
+      setPositions((currentPositions) =>
+        patchPosition(currentPositions, positionUpdate),
+      )
+    })
+  }, [userId])
 
   async function handleClosePosition(positionId: string) {
     setClosingPositionId(positionId)
@@ -295,6 +330,36 @@ function calculatePnlPercent(position: PositionResponse) {
 
 function getPositionPnl(position: PositionResponse) {
   return position.status === 'OPEN' ? position.unrealizedPnl : position.realizedPnl
+}
+
+function patchPosition(
+  positions: PositionResponse[],
+  positionUpdate: PositionResponse,
+) {
+  const existingIndex = positions.findIndex(
+    (position) => position.id === positionUpdate.id,
+  )
+
+  if (existingIndex === -1) {
+    if (positionUpdate.status !== 'OPEN') {
+      return positions
+    }
+
+    return [
+      ...sortOpenPositions([
+        positionUpdate,
+        ...positions.filter((position) => position.status === 'OPEN'),
+      ]),
+      ...sortClosedPositions(positions.filter((position) => position.status === 'CLOSED')),
+    ]
+  }
+
+  const nextPositions = [...positions]
+  nextPositions[existingIndex] = positionUpdate
+  return [
+    ...sortOpenPositions(nextPositions.filter((position) => position.status === 'OPEN')),
+    ...sortClosedPositions(nextPositions.filter((position) => position.status === 'CLOSED')),
+  ]
 }
 
 function calculatePositionValue(position: PositionResponse) {

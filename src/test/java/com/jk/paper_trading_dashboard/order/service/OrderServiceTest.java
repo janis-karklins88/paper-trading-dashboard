@@ -31,6 +31,7 @@ import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
 import com.jk.paper_trading_dashboard.position.service.PositionService;
+import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.user.domain.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,13 +49,21 @@ class OrderServiceTest {
   @Mock
   private MarketPriceService marketPriceService;
 
+  @Mock
+  private PositionPublisher positionPublisher;
+
   private OrderService orderService;
   private TradingAccount account;
   private UUID userId;
 
   @BeforeEach
   void setUp() {
-    orderService = new OrderService(orderRepository, tradingAccountService, positionService, marketPriceService);
+    orderService = new OrderService(
+        orderRepository,
+        tradingAccountService,
+        positionService,
+        marketPriceService,
+        positionPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
     userId = UUID.randomUUID();
     when(tradingAccountService.getActiveAccount(userId)).thenReturn(account);

@@ -34,4 +34,6 @@ public interface PositionRepository extends JpaRepository<Position, UUID> {
   boolean existsByTradingAccountIdAndStatus(UUID tradingAccountId, PositionStatus status);
 
   List<Position> findByStatus(PositionStatus open);
+
+  List<Position> findByStatusAndSymbol(PositionStatus status, String symbol);
 }

@@ -29,6 +29,7 @@ import com.jk.paper_trading_dashboard.position.domain.PositionSide;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
+import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.user.domain.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +47,9 @@ class PositionServiceTest {
   @Mock
   private MarketPriceService marketPriceService;
 
+  @Mock
+  private PositionPublisher positionPublisher;
+
   private PositionService positionService;
   private TradingAccount account;
   private UUID userId;
@@ -56,7 +60,8 @@ class PositionServiceTest {
         positionRepository,
         orderRepository,
         tradingAccountService,
-        marketPriceService);
+        marketPriceService,
+        positionPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
     account.reserveMargin(new BigDecimal("1000"));
     userId = UUID.randomUUID();
@@ -93,5 +98,6 @@ class PositionServiceTest {
     assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.FILLED);
     assertThat(orderCaptor.getValue().getFilledPrice()).isEqualByComparingTo("254.87250000");
     assertThat(orderCaptor.getValue().getFeeAmount()).isEqualByComparingTo("2.54872500");
+    verify(positionPublisher).publishPositionUpdate(userId, response);
   }
 }

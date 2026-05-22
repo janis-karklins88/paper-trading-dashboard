@@ -22,6 +22,7 @@ import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.dto.CreatePositionRequest;
 import com.jk.paper_trading_dashboard.position.dto.PositionResponse;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
+import com.jk.paper_trading_dashboard.position.ws.PositionPublisher;
 import com.jk.paper_trading_dashboard.shared.dto.PageResponse;
 import com.jk.paper_trading_dashboard.shared.exception.BadRequestException;
 import com.jk.paper_trading_dashboard.shared.exception.NotFoundException;
@@ -42,12 +43,15 @@ public class PositionService {
   private final OrderRepository orderRepository;
   private final TradingAccountService tradingAccountService;
   private final MarketPriceService marketPriceService;
+  private final PositionPublisher positionPublisher;
 
   @Transactional
   public PositionResponse createPosition(UUID userId, CreatePositionRequest request) {
     UUID tradingAccountId = getTradingAccountId(userId);
 
-    return PositionResponse.from(createPositionForAccount(tradingAccountId, request));
+    PositionResponse response = PositionResponse.from(createPositionForAccount(tradingAccountId, request));
+    positionPublisher.publishPositionUpdate(userId, response);
+    return response;
   }
 
   public Position createPositionForAccount(UUID tradingAccountId, CreatePositionRequest request) {
@@ -141,7 +145,9 @@ public class PositionService {
     account.applyPositionClose(realizedPnl, position.getMarginUsed(), closedUnrealizedPnl);
     account.deductFee(feeAmount);
 
-    return PositionResponse.from(position);
+    PositionResponse response = PositionResponse.from(position);
+    positionPublisher.publishPositionUpdate(userId, response);
+    return response;
   }
 
   private OrderSide closingSide(PositionSide positionSide) {
