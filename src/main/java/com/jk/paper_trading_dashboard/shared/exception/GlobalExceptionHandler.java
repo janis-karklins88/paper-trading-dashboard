@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,13 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiErrorResponse> handleAlreadyExists(AlreadyExistsException exception,
       HttpServletRequest request) {
     return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
+  }
+
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ResponseEntity<ApiErrorResponse> handleOptimisticLocking(
+      ObjectOptimisticLockingFailureException exception,
+      HttpServletRequest request) {
+    return buildResponse(HttpStatus.CONFLICT, "Resource was updated by another request; refresh and try again", request);
   }
 
   @ExceptionHandler(BadRequestException.class)

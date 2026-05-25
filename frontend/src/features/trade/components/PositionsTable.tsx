@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Check, Pencil, X } from 'lucide-react'
+import { useState } from 'react'
 import {
-  closePosition,
-  getClosedPositions,
-  getOpenPositions,
-  updatePositionExitPrices,
   type PositionResponse,
+  type UpdatePositionExitPricesPayload,
 } from '../api/positionApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
-import { getCurrentUser } from '../../../auth/authApi'
-import { subscribeToPositionUpdates } from '../api/positionStream'
-
-const POSITION_REFRESH_MS = 60_000
-const POSITION_PAGE_SIZE = 10
 
 type ExitPriceEditor = {
   positionId: string
@@ -20,135 +13,53 @@ type ExitPriceEditor = {
 }
 
 type PositionsTableProps = {
-  onPositionClosed?: () => void
+  positions: PositionResponse[]
+  openPage: number
+  closedPage: number
+  openTotalPages: number
+  closedTotalPages: number
+  openTotalPositions: number
+  closedTotalPositions: number
+  isLoading: boolean
+  error: string
+  onOpenPageChange: (page: number | ((currentPage: number) => number)) => void
+  onClosedPageChange: (page: number | ((currentPage: number) => number)) => void
+  onClosePosition: (positionId: string) => Promise<unknown>
+  onUpdateExitPrices: (
+    positionId: string,
+    payload: UpdatePositionExitPricesPayload,
+  ) => Promise<unknown>
 }
 
-export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
-  const [positions, setPositions] = useState<PositionResponse[]>([])
-  const [openPage, setOpenPage] = useState(0)
-  const [closedPage, setClosedPage] = useState(0)
-  const [openTotalPages, setOpenTotalPages] = useState(0)
-  const [closedTotalPages, setClosedTotalPages] = useState(0)
-  const [openTotalPositions, setOpenTotalPositions] = useState(0)
-  const [closedTotalPositions, setClosedTotalPositions] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+export function PositionsTable({
+  closedPage,
+  closedTotalPages,
+  closedTotalPositions,
+  error,
+  isLoading,
+  onClosePosition,
+  onClosedPageChange,
+  onOpenPageChange,
+  onUpdateExitPrices,
+  openPage,
+  openTotalPages,
+  openTotalPositions,
+  positions,
+}: PositionsTableProps) {
   const [closingPositionId, setClosingPositionId] = useState('')
   const [savingExitPositionId, setSavingExitPositionId] = useState('')
   const [exitPriceEditor, setExitPriceEditor] =
     useState<ExitPriceEditor | null>(null)
-  const [error, setError] = useState('')
-  const [userId, setUserId] = useState('')
-
-  const loadPositionsForPages = useCallback(
-    async (nextOpenPage: number, nextClosedPage: number) => {
-      const [openPositions, closedPositions] = await Promise.all([
-        getOpenPositions(nextOpenPage, POSITION_PAGE_SIZE),
-        getClosedPositions(nextClosedPage, POSITION_PAGE_SIZE),
-      ])
-
-      setPositions([
-        ...sortOpenPositions(openPositions.content),
-        ...sortClosedPositions(closedPositions.content),
-      ])
-      setOpenTotalPages(openPositions.totalPages)
-      setClosedTotalPages(closedPositions.totalPages)
-      setOpenTotalPositions(openPositions.totalElements)
-      setClosedTotalPositions(closedPositions.totalElements)
-      setError('')
-    },
-    [],
-  )
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadMountedPositions = () => {
-      Promise.all([
-        getOpenPositions(openPage, POSITION_PAGE_SIZE),
-        getClosedPositions(closedPage, POSITION_PAGE_SIZE),
-      ])
-        .then(([openPositions, closedPositions]) => {
-          if (isMounted) {
-            setPositions([
-              ...sortOpenPositions(openPositions.content),
-              ...sortClosedPositions(closedPositions.content),
-            ])
-            setOpenTotalPages(openPositions.totalPages)
-            setClosedTotalPages(closedPositions.totalPages)
-            setOpenTotalPositions(openPositions.totalElements)
-            setClosedTotalPositions(closedPositions.totalElements)
-            setError('')
-          }
-        })
-        .catch(() => {
-          if (isMounted) {
-            setError('Failed to load positions')
-          }
-        })
-        .finally(() => {
-          if (isMounted) {
-            setIsLoading(false)
-          }
-        })
-    }
-
-    loadMountedPositions()
-
-    // Recovery polling; live open-position prices arrive over websocket.
-    const intervalId = window.setInterval(
-      loadMountedPositions,
-      POSITION_REFRESH_MS,
-    )
-
-    return () => {
-      isMounted = false
-      window.clearInterval(intervalId)
-    }
-  }, [closedPage, openPage])
-
-  useEffect(() => {
-    let isMounted = true
-
-    getCurrentUser()
-      .then((user) => {
-        if (isMounted) {
-          setUserId(user.id)
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setUserId('')
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!userId) {
-      return
-    }
-
-    return subscribeToPositionUpdates(userId, (positionUpdate) => {
-      setPositions((currentPositions) =>
-        patchPosition(currentPositions, positionUpdate),
-      )
-    })
-  }, [userId])
+  const [actionError, setActionError] = useState('')
 
   async function handleClosePosition(positionId: string) {
     setClosingPositionId(positionId)
-    setError('')
+    setActionError('')
 
     try {
-      await closePosition(positionId)
-      setClosedPage(0)
-      await loadPositionsForPages(openPage, 0)
-      onPositionClosed?.()
+      await onClosePosition(positionId)
     } catch (caughtError) {
-      setError(
+      setActionError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Failed to close position',
@@ -175,25 +86,21 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
       !isOptionalPositivePrice(exitPriceEditor.takeProfitPrice) ||
       !isOptionalPositivePrice(exitPriceEditor.stopLossPrice)
     ) {
-      setError('TP and SL must be empty or greater than zero')
+      setActionError('TP and SL must be empty or greater than zero')
       return
     }
 
     setSavingExitPositionId(positionId)
-    setError('')
+    setActionError('')
 
     try {
-      const updatedPosition = await updatePositionExitPrices(positionId, {
+      await onUpdateExitPrices(positionId, {
         takeProfitPrice: normalizeOptionalPrice(exitPriceEditor.takeProfitPrice),
         stopLossPrice: normalizeOptionalPrice(exitPriceEditor.stopLossPrice),
       })
-
-      setPositions((currentPositions) =>
-        patchPosition(currentPositions, updatedPosition),
-      )
       setExitPriceEditor(null)
     } catch (caughtError) {
-      setError(
+      setActionError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Failed to update exit prices',
@@ -351,46 +258,54 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
                         {isEditingExitPrices ? (
                           <>
                             <button
-                              className={actionButtonClass}
                               aria-label="Save exit prices"
-                              title="Save"
+                              className={actionButtonClass}
                               disabled={isSavingExitPrices}
                               onClick={() => void handleSaveExitPrices(position.id)}
+                              title="Save"
                               type="button"
                             >
-                              {isSavingExitPrices ? '...' : '✓'}
+                              {isSavingExitPrices ? (
+                                '...'
+                              ) : (
+                                <Check aria-hidden="true" size={14} />
+                              )}
                             </button>
                             <button
-                              className={secondaryButtonClass}
                               aria-label="Cancel editing exit prices"
-                              title="Cancel"
+                              className={secondaryButtonClass}
                               disabled={isSavingExitPrices}
                               onClick={() => setExitPriceEditor(null)}
+                              title="Cancel"
                               type="button"
                             >
-                              ×
+                              <X aria-hidden="true" size={14} />
                             </button>
                           </>
                         ) : (
                           <>
                             <button
-                              className={secondaryButtonClass}
                               aria-label="Edit exit prices"
-                              title="Edit TP/SL"
+                              className={secondaryButtonClass}
                               onClick={() => startEditingExitPrices(position)}
+                              title="Edit TP/SL"
                               type="button"
                             >
-                              ✎
+                              <Pencil aria-hidden="true" size={13} />
                             </button>
                             <button
-                              className={dangerButtonClass}
                               aria-label="Close position"
-                              title="Close"
+                              className={dangerButtonClass}
                               disabled={isClosing}
                               onClick={() => void handleClosePosition(position.id)}
+                              title="Close"
                               type="button"
                             >
-                              {isClosing ? '...' : '×'}
+                              {isClosing ? (
+                                '...'
+                              ) : (
+                                <X aria-hidden="true" size={14} />
+                              )}
                             </button>
                           </>
                         )}
@@ -424,9 +339,9 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
           </div>
         )}
 
-        {error && (
+        {(error || actionError) && (
           <div className="border-t border-[#1e293b] bg-[#ff5367]/12 px-4 py-3 text-sm font-bold text-[#ffdce1]">
-            {error}
+            {actionError || error}
           </div>
         )}
       </div>
@@ -436,12 +351,12 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
           currentPage={openPage}
           label="Open"
           onNext={() =>
-            setOpenPage((currentPage) =>
+            onOpenPageChange((currentPage) =>
               Math.min(currentPage + 1, Math.max(openTotalPages - 1, 0)),
             )
           }
           onPrevious={() =>
-            setOpenPage((currentPage) => Math.max(currentPage - 1, 0))
+            onOpenPageChange((currentPage) => Math.max(currentPage - 1, 0))
           }
           totalPages={openTotalPages}
         />
@@ -449,12 +364,12 @@ export function PositionsTable({ onPositionClosed }: PositionsTableProps) {
           currentPage={closedPage}
           label="Closed"
           onNext={() =>
-            setClosedPage((currentPage) =>
+            onClosedPageChange((currentPage) =>
               Math.min(currentPage + 1, Math.max(closedTotalPages - 1, 0)),
             )
           }
           onPrevious={() =>
-            setClosedPage((currentPage) => Math.max(currentPage - 1, 0))
+            onClosedPageChange((currentPage) => Math.max(currentPage - 1, 0))
           }
           totalPages={closedTotalPages}
         />
@@ -478,36 +393,6 @@ function getPositionPnl(position: PositionResponse) {
   return position.status === 'OPEN' ? position.unrealizedPnl : position.realizedPnl
 }
 
-function patchPosition(
-  positions: PositionResponse[],
-  positionUpdate: PositionResponse,
-) {
-  const existingIndex = positions.findIndex(
-    (position) => position.id === positionUpdate.id,
-  )
-
-  if (existingIndex === -1) {
-    if (positionUpdate.status !== 'OPEN') {
-      return positions
-    }
-
-    return [
-      ...sortOpenPositions([
-        positionUpdate,
-        ...positions.filter((position) => position.status === 'OPEN'),
-      ]),
-      ...sortClosedPositions(positions.filter((position) => position.status === 'CLOSED')),
-    ]
-  }
-
-  const nextPositions = [...positions]
-  nextPositions[existingIndex] = positionUpdate
-  return [
-    ...sortOpenPositions(nextPositions.filter((position) => position.status === 'OPEN')),
-    ...sortClosedPositions(nextPositions.filter((position) => position.status === 'CLOSED')),
-  ]
-}
-
 function calculatePositionValue(position: PositionResponse) {
   const quantity = Number(position.quantity)
   const price = Number(position.currentPrice)
@@ -517,24 +402,6 @@ function calculatePositionValue(position: PositionResponse) {
   }
 
   return quantity * price
-}
-
-function sortOpenPositions(positions: PositionResponse[]) {
-  return [...positions].sort(
-    (left, right) =>
-      new Date(right.openedAt).getTime() - new Date(left.openedAt).getTime(),
-  )
-}
-
-function sortClosedPositions(positions: PositionResponse[]) {
-  return [...positions].sort(
-    (left, right) =>
-      getTimeOrZero(right.closedAt) - getTimeOrZero(left.closedAt),
-  )
-}
-
-function getTimeOrZero(value: string | null) {
-  return value ? new Date(value).getTime() : 0
 }
 
 function editablePriceValue(value: string | number | null) {

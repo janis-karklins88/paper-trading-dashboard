@@ -1,98 +1,40 @@
-import { useCallback, useEffect, useState } from 'react'
-import { cancelOrder, getOrders, type OrderResponse } from '../api/orderApi'
+import { useState } from 'react'
+import { X } from 'lucide-react'
+import { type OrderResponse } from '../api/orderApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
-import { getCurrentUser } from '../../../auth/authApi'
-import { subscribeToOrderUpdates } from '../api/orderStream'
-
-const ORDER_REFRESH_MS = 60_000
-const ORDER_PAGE_SIZE = 10
 
 type OrdersTableProps = {
-  refreshKey?: number
+  orders: OrderResponse[]
+  page: number
+  totalPages: number
+  totalOrders: number
+  isLoading: boolean
+  error: string
+  onPageChange: (page: number | ((currentPage: number) => number)) => void
+  onCancelOrder: (orderId: string) => Promise<unknown>
 }
 
-export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
-  const [orders, setOrders] = useState<OrderResponse[]>([])
-  const [page, setPage] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
-  const [totalOrders, setTotalOrders] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+export function OrdersTable({
+  error,
+  isLoading,
+  onCancelOrder,
+  onPageChange,
+  orders,
+  page,
+  totalOrders,
+  totalPages,
+}: OrdersTableProps) {
   const [cancelingOrderId, setCancelingOrderId] = useState('')
-  const [error, setError] = useState('')
-  const [userId, setUserId] = useState('')
-
-  const loadOrders = useCallback(() => {
-    getOrders(page, ORDER_PAGE_SIZE)
-      .then((nextPage) => {
-        setOrders(nextPage.content)
-        setTotalPages(nextPage.totalPages)
-        setTotalOrders(nextPage.totalElements)
-        setError('')
-      })
-      .catch(() => {
-        setError('Failed to load orders')
-      })
-      .finally(() => {
-        setIsLoading(false)
-      })
-  }, [page])
-
-  useEffect(() => {
-    loadOrders()
-
-    // Recovery polling; order changes arrive over websocket.
-    const intervalId = window.setInterval(loadOrders, ORDER_REFRESH_MS)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [loadOrders])
-
-  useEffect(() => {
-    if (refreshKey > 0) {
-      loadOrders()
-    }
-  }, [loadOrders, refreshKey])
-
-  useEffect(() => {
-    let isMounted = true
-
-    getCurrentUser()
-      .then((user) => {
-        if (isMounted) {
-          setUserId(user.id)
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setUserId('')
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!userId) {
-      return
-    }
-
-    return subscribeToOrderUpdates(userId, (orderUpdate) => {
-      setOrders((currentOrders) => patchOrder(currentOrders, orderUpdate))
-    })
-  }, [userId])
+  const [actionError, setActionError] = useState('')
 
   async function handleCancelOrder(orderId: string) {
     setCancelingOrderId(orderId)
-    setError('')
+    setActionError('')
 
     try {
-      await cancelOrder(orderId)
-      await loadOrders()
+      await onCancelOrder(orderId)
     } catch (caughtError) {
-      setError(
+      setActionError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Failed to cancel order',
@@ -190,12 +132,18 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
                   <td className={bodyCellClass}>
                     {canCancelOrder ? (
                       <button
-                        className="min-h-7 rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 px-2.5 text-xs font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label="Cancel order"
+                        className={dangerButtonClass}
                         disabled={isCanceling}
                         onClick={() => void handleCancelOrder(order.id)}
+                        title="Cancel"
                         type="button"
                       >
-                        {isCanceling ? 'Canceling' : 'Cancel'}
+                        {isCanceling ? (
+                          '...'
+                        ) : (
+                          <X aria-hidden="true" size={14} />
+                        )}
                       </button>
                     ) : (
                       filledColumnText(order)
@@ -221,9 +169,9 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
           </div>
         )}
 
-        {error && (
+        {(error || actionError) && (
           <div className="border-t border-[#1e293b] bg-[#ff5367]/12 px-4 py-3 text-sm font-bold text-[#ffdce1]">
-            {error}
+            {actionError || error}
           </div>
         )}
       </div>
@@ -232,12 +180,12 @@ export function OrdersTable({ refreshKey = 0 }: OrdersTableProps) {
         className="mt-3"
         currentPage={page}
         onNext={() =>
-          setPage((currentPage) =>
+          onPageChange((currentPage) =>
             Math.min(currentPage + 1, Math.max(totalPages - 1, 0)),
           )
         }
         onPrevious={() =>
-          setPage((currentPage) => Math.max(currentPage - 1, 0))
+          onPageChange((currentPage) => Math.max(currentPage - 1, 0))
         }
         totalPages={totalPages}
       />
@@ -326,25 +274,6 @@ function filledColumnText(order: OrderResponse) {
   return formatEnumLabel(order.status)
 }
 
-function patchOrder(orders: OrderResponse[], orderUpdate: OrderResponse) {
-  const existingIndex = orders.findIndex((order) => order.id === orderUpdate.id)
-
-  if (existingIndex === -1) {
-    return sortOrders([orderUpdate, ...orders]).slice(0, ORDER_PAGE_SIZE)
-  }
-
-  const nextOrders = [...orders]
-  nextOrders[existingIndex] = orderUpdate
-  return sortOrders(nextOrders)
-}
-
-function sortOrders(orders: OrderResponse[]) {
-  return [...orders].sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-  )
-}
-
 function statusClass(status: string) {
   switch (status) {
     case 'FILLED':
@@ -364,6 +293,8 @@ function statusClass(status: string) {
 const headerCellClass =
   'whitespace-nowrap px-3 py-2.5 text-xs font-extrabold uppercase'
 const bodyCellClass = 'whitespace-nowrap px-3 py-2.5 text-[#9db2d0]'
+const dangerButtonClass =
+  'grid size-7 place-items-center rounded-md border border-[#ff5367]/30 bg-[#ff5367]/12 text-sm font-bold text-[#ffdce1] transition hover:bg-[#ff5367]/20 disabled:cursor-not-allowed disabled:opacity-60'
 
 type PaginationControlsProps = {
   className?: string

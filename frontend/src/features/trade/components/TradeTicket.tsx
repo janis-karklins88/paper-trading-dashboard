@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { type MarketPrice } from '../api/marketDataApi'
 import { placeOrder, type OrderResponse } from '../api/orderApi'
-import {
-  getTradingAccount,
-  type TradingAccountResponse,
-} from '../api/accountApi'
+import { type TradingAccountResponse } from '../api/accountApi'
 import { formatOptionalPrice } from '../../../utils/formatters'
 import type { SelectedAsset } from '../types'
 
 type TradeTicketProps = {
+  tradingAccount: TradingAccountResponse | null
+  onOrderPlaced: (order: OrderResponse) => Promise<void> | void
   selectedAsset?: SelectedAsset
   selectedSymbol: string
   latestPrice: MarketPrice | null
@@ -17,13 +16,24 @@ type TradeTicketProps = {
 
 type OrderSide = 'buy' | 'sell'
 type OrderType = 'market' | 'limit'
-
-const TEMP_ACCOUNT_REFRESH_MS = 15_000
+type OrderFieldErrors = Partial<
+  Record<
+    | 'symbol'
+    | 'limitPrice'
+    | 'marginAmount'
+    | 'leverage'
+    | 'takeProfitPrice'
+    | 'stopLossPrice',
+    string
+  >
+>
 
 export function TradeTicket({
   latestPrice,
+  onOrderPlaced,
   selectedAsset,
   selectedSymbol,
+  tradingAccount,
 }: TradeTicketProps) {
   const [side, setSide] = useState<OrderSide>('buy')
   const [orderType, setOrderType] = useState<OrderType>('market')
@@ -32,10 +42,9 @@ export function TradeTicket({
   const [limitPrice, setLimitPrice] = useState('')
   const [takeProfitPrice, setTakeProfitPrice] = useState('')
   const [stopLossPrice, setStopLossPrice] = useState('')
-  const [tradingAccount, setTradingAccount] =
-    useState<TradingAccountResponse | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<OrderFieldErrors>({})
   const [lastOrder, setLastOrder] = useState<OrderResponse | null>(null)
 
   const notionalValue = Number(marginAmount || 0) * Number(leverage || 1)
@@ -43,51 +52,26 @@ export function TradeTicket({
     notionalValue * (orderType === 'market' ? 0.0005 : 0.0001)
   const canSubmit =
     Boolean(selectedSymbol) &&
-    Number(marginAmount) > 0 &&
-    Number(leverage) >= 1 &&
-    (orderType === 'market' || Number(limitPrice) > 0) &&
-    isOptionalPositivePrice(takeProfitPrice) &&
-    isOptionalPositivePrice(stopLossPrice) &&
     !isSubmitting
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadTradingAccount = () => {
-      getTradingAccount()
-        .then((account) => {
-          if (isMounted) {
-            setTradingAccount(account)
-          }
-        })
-        .catch(() => {
-          if (isMounted) {
-            setTradingAccount(null)
-          }
-        })
-    }
-
-    loadTradingAccount()
-
-    // Temporary polling until account websocket updates or shared trade state exist.
-    const intervalId = window.setInterval(
-      loadTradingAccount,
-      TEMP_ACCOUNT_REFRESH_MS,
-    )
-
-    return () => {
-      isMounted = false
-      window.clearInterval(intervalId)
-    }
-  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    setFieldErrors({})
     setLastOrder(null)
 
-    if (!canSubmit) {
-      setError('Enter valid order details')
+    const validationErrors = validateOrderDetails({
+      leverage,
+      limitPrice,
+      marginAmount,
+      orderType,
+      selectedSymbol,
+      stopLossPrice,
+      takeProfitPrice,
+    })
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors)
       return
     }
 
@@ -106,16 +90,43 @@ export function TradeTicket({
       })
 
       setLastOrder(order)
-      setTradingAccount(await getTradingAccount())
+      await onOrderPlaced(order)
+      resetTicket()
     } catch (caughtError) {
-      setError(
+      const errorMessage =
         caughtError instanceof Error
           ? caughtError.message
-          : 'Failed to place order',
-      )
+          : 'Failed to place order'
+      const mappedErrors = mapOrderErrorToFields(errorMessage)
+
+      setFieldErrors(mappedErrors.fieldErrors)
+      setError(mappedErrors.generalError)
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  function clearFieldError(field: keyof OrderFieldErrors) {
+    setFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) {
+        return currentErrors
+      }
+
+      const nextErrors = { ...currentErrors }
+      delete nextErrors[field]
+      return nextErrors
+    })
+  }
+
+  function resetTicket() {
+    setSide('buy')
+    setOrderType('market')
+    setMarginAmount('')
+    setLeverage('1')
+    setLimitPrice('')
+    setTakeProfitPrice('')
+    setStopLossPrice('')
+    setFieldErrors({})
   }
 
   return (
@@ -154,7 +165,11 @@ export function TradeTicket({
                   ? 'bg-[#2fac7e] text-[#061a14]'
                   : 'bg-[#00d084]/15 text-[#00d084] hover:bg-[#00d084]/20',
               ].join(' ')}
-              onClick={() => setSide('buy')}
+              onClick={() => {
+                setSide('buy')
+                clearFieldError('takeProfitPrice')
+                clearFieldError('stopLossPrice')
+              }}
               type="button"
             >
               Buy
@@ -166,7 +181,11 @@ export function TradeTicket({
                   ? 'bg-[#a33d49] text-white'
                   : 'bg-[#ff5367]/15 text-[#ff5367] hover:bg-[#ff5367]/20',
               ].join(' ')}
-              onClick={() => setSide('sell')}
+              onClick={() => {
+                setSide('sell')
+                clearFieldError('takeProfitPrice')
+                clearFieldError('stopLossPrice')
+              }}
               type="button"
             >
               Sell
@@ -181,14 +200,20 @@ export function TradeTicket({
           <div className="grid grid-cols-2 rounded-md border border-[#21304a] bg-[#0f1727] p-1">
             <button
               className={orderTypeButtonClass(orderType === 'market')}
-              onClick={() => setOrderType('market')}
+              onClick={() => {
+                setOrderType('market')
+                clearFieldError('limitPrice')
+              }}
               type="button"
             >
               Market
             </button>
             <button
               className={orderTypeButtonClass(orderType === 'limit')}
-              onClick={() => setOrderType('limit')}
+              onClick={() => {
+                setOrderType('limit')
+                clearFieldError('limitPrice')
+              }}
               type="button"
             >
               Limit
@@ -200,13 +225,17 @@ export function TradeTicket({
           <label className={fieldLabelClass}>
             Limit price
             <input
-              className={fieldInputClass}
+              className={fieldInputClass(Boolean(fieldErrors.limitPrice))}
               inputMode="decimal"
-              onChange={(event) => setLimitPrice(event.target.value)}
+              onChange={(event) => {
+                setLimitPrice(event.target.value)
+                clearFieldError('limitPrice')
+              }}
               placeholder="0.00"
               type="text"
               value={limitPrice}
             />
+            <FieldError message={fieldErrors.limitPrice} />
           </label>
         )}
 
@@ -217,21 +246,28 @@ export function TradeTicket({
               $
             </span>
             <input
-              className={`${fieldInputClass} pl-7`}
+              className={`${fieldInputClass(Boolean(fieldErrors.marginAmount))} pl-7`}
               inputMode="decimal"
-              onChange={(event) => setMarginAmount(event.target.value)}
+              onChange={(event) => {
+                setMarginAmount(event.target.value)
+                clearFieldError('marginAmount')
+              }}
               placeholder="1000.00"
               type="text"
               value={marginAmount}
             />
           </div>
+          <FieldError message={fieldErrors.marginAmount} />
         </label>
 
         <label className={fieldLabelClass}>
           Leverage
           <select
-            className={fieldInputClass}
-            onChange={(event) => setLeverage(event.target.value)}
+            className={fieldInputClass(Boolean(fieldErrors.leverage))}
+            onChange={(event) => {
+              setLeverage(event.target.value)
+              clearFieldError('leverage')
+            }}
             value={leverage}
           >
             <option value="1">1x</option>
@@ -239,31 +275,40 @@ export function TradeTicket({
             <option value="3">3x</option>
             <option value="5">5x</option>
           </select>
+          <FieldError message={fieldErrors.leverage} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className={fieldLabelClass}>
             Take profit
             <input
-              className={fieldInputClass}
+              className={fieldInputClass(Boolean(fieldErrors.takeProfitPrice))}
               inputMode="decimal"
-              onChange={(event) => setTakeProfitPrice(event.target.value)}
+              onChange={(event) => {
+                setTakeProfitPrice(event.target.value)
+                clearFieldError('takeProfitPrice')
+              }}
               placeholder="Optional"
               type="text"
               value={takeProfitPrice}
             />
+            <FieldError message={fieldErrors.takeProfitPrice} />
           </label>
 
           <label className={fieldLabelClass}>
             Stop loss
             <input
-              className={fieldInputClass}
+              className={fieldInputClass(Boolean(fieldErrors.stopLossPrice))}
               inputMode="decimal"
-              onChange={(event) => setStopLossPrice(event.target.value)}
+              onChange={(event) => {
+                setStopLossPrice(event.target.value)
+                clearFieldError('stopLossPrice')
+              }}
               placeholder="Optional"
               type="text"
               value={stopLossPrice}
             />
+            <FieldError message={fieldErrors.stopLossPrice} />
           </label>
         </div>
 
@@ -348,8 +393,134 @@ function normalizeOptionalPrice(value: string) {
 }
 
 const fieldLabelClass = 'grid gap-2 text-sm font-semibold text-[#dce8ff]'
-const fieldInputClass =
-  'min-h-11 w-full rounded-md border border-[#21304a] bg-[#0d1627] px-3 text-[#f7fbff] outline-none placeholder:text-[#6f829f] focus:border-[#6f84ff] disabled:cursor-not-allowed disabled:opacity-50'
+
+function fieldInputClass(hasError = false) {
+  return [
+    'min-h-11 w-full rounded-md border bg-[#0d1627] px-3 text-[#f7fbff] outline-none placeholder:text-[#6f829f] disabled:cursor-not-allowed disabled:opacity-50',
+    hasError
+      ? 'border-[#ff5367] focus:border-[#ff5367]'
+      : 'border-[#21304a] focus:border-[#6f84ff]',
+  ].join(' ')
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) {
+    return null
+  }
+
+  return <span className="text-xs font-bold text-[#ffdce1]">{message}</span>
+}
+
+function validateOrderDetails({
+  leverage,
+  limitPrice,
+  marginAmount,
+  orderType,
+  selectedSymbol,
+  stopLossPrice,
+  takeProfitPrice,
+}: {
+  leverage: string
+  limitPrice: string
+  marginAmount: string
+  orderType: OrderType
+  selectedSymbol: string
+  stopLossPrice: string
+  takeProfitPrice: string
+}) {
+  const errors: OrderFieldErrors = {}
+
+  if (!selectedSymbol) {
+    errors.symbol = 'Select a symbol first'
+  }
+
+  if (!isPositiveNumber(marginAmount)) {
+    errors.marginAmount = 'Position size must be greater than zero'
+  }
+
+  if (!isNumberAtLeast(leverage, 1)) {
+    errors.leverage = 'Leverage must be at least 1x'
+  }
+
+  if (orderType === 'limit' && !isPositiveNumber(limitPrice)) {
+    errors.limitPrice = 'Limit price must be greater than zero'
+  }
+
+  if (!isOptionalPositivePrice(takeProfitPrice)) {
+    errors.takeProfitPrice = 'Take profit must be greater than zero'
+  }
+
+  if (!isOptionalPositivePrice(stopLossPrice)) {
+    errors.stopLossPrice = 'Stop loss must be greater than zero'
+  }
+
+  return errors
+}
+
+function mapOrderErrorToFields(message: string) {
+  const normalizedMessage = message.toLowerCase()
+  const fieldErrors: OrderFieldErrors = {}
+
+  for (const fieldMessage of message.split(';')) {
+    const trimmedMessage = fieldMessage.trim()
+    const [fieldName, ...details] = trimmedMessage.split(':')
+    const fieldErrorMessage = details.join(':').trim() || trimmedMessage
+
+    if (fieldName in fieldErrorMap) {
+      fieldErrors[fieldErrorMap[fieldName]] = fieldErrorMessage
+    }
+  }
+
+  if (normalizedMessage.includes('take profit')) {
+    fieldErrors.takeProfitPrice = message
+  }
+
+  if (normalizedMessage.includes('stop loss')) {
+    fieldErrors.stopLossPrice = message
+  }
+
+  if (
+    normalizedMessage.includes('limit price') ||
+    normalizedMessage.includes('limit order requires')
+  ) {
+    fieldErrors.limitPrice = message
+  }
+
+  if (
+    normalizedMessage.includes('cash balance') ||
+    normalizedMessage.includes('margin')
+  ) {
+    fieldErrors.marginAmount = message
+  }
+
+  if (normalizedMessage.includes('leverage')) {
+    fieldErrors.leverage = message
+  }
+
+  return {
+    fieldErrors,
+    generalError: Object.keys(fieldErrors).length > 0 ? '' : message,
+  }
+}
+
+const fieldErrorMap: Record<string, keyof OrderFieldErrors> = {
+  leverage: 'leverage',
+  limitPrice: 'limitPrice',
+  marginAmount: 'marginAmount',
+  stopLossPrice: 'stopLossPrice',
+  symbol: 'symbol',
+  takeProfitPrice: 'takeProfitPrice',
+}
+
+function isPositiveNumber(value: string) {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) && numberValue > 0
+}
+
+function isNumberAtLeast(value: string, minimum: number) {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) && numberValue >= minimum
+}
 
 function orderTypeButtonClass(isActive: boolean) {
   return [

@@ -5,17 +5,17 @@ import { TradeTicket } from './components/TradeTicket'
 import { TradingChart } from './components/TradingChart'
 import { Watchlist } from './components/Watchlist'
 import { trackActiveSymbol } from './api/marketDataApi'
-import { useChartLevels } from './hooks/useChartLevels'
 import { useSelectedMarketPrice } from './hooks/useSelectedMarketPrice'
+import { useTradeState } from './hooks/useTradeState'
+import { buildChartLevels } from './utils/chartLevels'
 import type { SelectedAsset } from './types'
 
 const ACTIVE_SYMBOL_HEARTBEAT_MS = 15_000
 
 export function TradeWorkspace() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
-  const [ordersRefreshKey, setOrdersRefreshKey] = useState(0)
   const selectedPrice = useSelectedMarketPrice(selectedSymbol)
-  const chartLevels = useChartLevels(selectedSymbol)
+  const tradeState = useTradeState()
 
   const selectedAsset = useMemo<SelectedAsset | undefined>(() => {
     if (!selectedSymbol) {
@@ -28,6 +28,16 @@ export function TradeWorkspace() {
       quoteSymbol: selectedSymbol,
     }
   }, [selectedSymbol])
+
+  const chartLevels = useMemo(
+    () =>
+      buildChartLevels(
+        selectedSymbol,
+        tradeState.positions,
+        tradeState.orders,
+      ),
+    [selectedSymbol, tradeState.orders, tradeState.positions],
+  )
 
   useEffect(() => {
     if (!selectedSymbol) {
@@ -74,8 +84,10 @@ export function TradeWorkspace() {
         <div className="min-w-0 xl:col-span-3">
           <TradeTicket
             latestPrice={selectedPrice}
+            onOrderPlaced={tradeState.handleOrderPlaced}
             selectedAsset={selectedAsset}
             selectedSymbol={selectedSymbol}
+            tradingAccount={tradeState.tradingAccount}
           />
         </div>
       </div>
@@ -83,11 +95,30 @@ export function TradeWorkspace() {
       <div className="grid gap-4 xl:grid-cols-12">
         <div className="grid min-w-0 gap-4 xl:col-span-9">
           <PositionsTable
-            onPositionClosed={() =>
-              setOrdersRefreshKey((currentKey) => currentKey + 1)
-            }
+            closedPage={tradeState.closedPage}
+            closedTotalPages={tradeState.closedTotalPages}
+            closedTotalPositions={tradeState.closedTotalPositions}
+            error={tradeState.positionsError}
+            isLoading={tradeState.isLoadingPositions}
+            onClosePosition={tradeState.closePosition}
+            onClosedPageChange={tradeState.setClosedPage}
+            onOpenPageChange={tradeState.setOpenPage}
+            onUpdateExitPrices={tradeState.savePositionExitPrices}
+            openPage={tradeState.openPage}
+            openTotalPages={tradeState.openTotalPages}
+            openTotalPositions={tradeState.openTotalPositions}
+            positions={tradeState.positions}
           />
-          <OrdersTable refreshKey={ordersRefreshKey} />
+          <OrdersTable
+            error={tradeState.ordersError}
+            isLoading={tradeState.isLoadingOrders}
+            onCancelOrder={tradeState.cancelOrder}
+            onPageChange={tradeState.setOrderPage}
+            orders={tradeState.orders}
+            page={tradeState.orderPage}
+            totalOrders={tradeState.totalOrders}
+            totalPages={tradeState.orderTotalPages}
+          />
         </div>
         <div className="min-w-0 xl:col-span-3">
           <Watchlist

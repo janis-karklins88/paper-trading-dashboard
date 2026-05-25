@@ -13,6 +13,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "positions")
@@ -69,6 +70,10 @@ public class Position {
 
   @Column(nullable = false)
   private Instant updatedAt;
+
+  @Version
+  @Column(nullable = false)
+  private Long version;
 
   protected Position() {
 
@@ -132,6 +137,7 @@ public class Position {
     this.status = PositionStatus.OPEN;
     this.openedAt = Instant.now();
     this.updatedAt = this.openedAt;
+    this.version = 0L;
   }
 
   public BigDecimal close() {
@@ -373,5 +379,13 @@ public class Position {
 
   public void setUpdatedAt(Instant updatedAt) {
     this.updatedAt = updatedAt;
+  }
+
+  public Long getVersion() {
+    return version;
+  }
+
+  public void setVersion(Long version) {
+    this.version = version;
   }
 }
