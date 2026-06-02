@@ -33,3 +33,37 @@ export function formatOptionalPrice(price?: number | string | null): string {
 
   return formatPrice(numericPrice)
 }
+
+export function formatMoney(value?: number | string | null): string {
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue)) {
+    return '--'
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(numericValue)
+}
+
+export function formatSignedMoney(value?: number | string | null): string {
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue)) {
+    return '--'
+  }
+
+  const formattedValue = formatMoney(Math.abs(numericValue))
+
+  if (numericValue > 0) {
+    return `+${formattedValue}`
+  }
+
+  if (numericValue < 0) {
+    return `-${formattedValue}`
+  }
+
+  return formattedValue
+}

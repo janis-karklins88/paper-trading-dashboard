@@ -137,7 +137,6 @@ public class Position {
     this.status = PositionStatus.OPEN;
     this.openedAt = Instant.now();
     this.updatedAt = this.openedAt;
-    this.version = 0L;
   }
 
   public BigDecimal close() {

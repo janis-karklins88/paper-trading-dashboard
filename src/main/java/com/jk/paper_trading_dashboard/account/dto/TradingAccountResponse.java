@@ -10,6 +10,7 @@ public record TradingAccountResponse(
     BigDecimal equity,
     BigDecimal unrealizedPnl,
     BigDecimal realizedPnl,
+    BigDecimal netPnl,
     BigDecimal maxLeverage,
     BigDecimal buyingPower) {
 
@@ -28,6 +29,7 @@ public record TradingAccountResponse(
         equity,
         unrealizedPnl,
         account.getRealizedPnl(),
+        equity.subtract(account.getStartingCash()),
         account.getMaxLeverage(),
         account.getCashBalance().multiply(account.getMaxLeverage()));
   }

@@ -83,6 +83,7 @@ class AccountEquitySnapshotServiceTest {
             new BigDecimal(equity),
             BigDecimal.ZERO,
             BigDecimal.ZERO,
+            new BigDecimal(equity).subtract(new BigDecimal("100000")),
             new BigDecimal("5"),
             new BigDecimal("500000")));
     snapshot.setCreatedAt(Instant.parse(createdAt));

@@ -60,6 +60,7 @@ class TradingAccountValuationServiceTest {
 
     assertThat(response.unrealizedPnl()).isEqualByComparingTo("100");
     assertThat(response.equity()).isEqualByComparingTo("100100");
+    assertThat(response.netPnl()).isEqualByComparingTo("100");
     assertThat(response.buyingPower()).isEqualByComparingTo("500000");
   }
 }

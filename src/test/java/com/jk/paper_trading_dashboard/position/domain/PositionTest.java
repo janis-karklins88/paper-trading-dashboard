@@ -32,6 +32,21 @@ class PositionTest {
   }
 
   @Test
+  void newPositionLeavesVersionUnsetForJpaPersist() {
+    Position position = new Position(
+        UUID.randomUUID(),
+        "TSLA",
+        PositionSide.LONG,
+        new BigDecimal("20"),
+        new BigDecimal("250"),
+        new BigDecimal("255"),
+        new BigDecimal("1000"),
+        new BigDecimal("5"));
+
+    assertThat(position.getVersion()).isNull();
+  }
+
+  @Test
   void closedPositionCannotBeClosedAgain() {
     Position position = new Position(
         UUID.randomUUID(),

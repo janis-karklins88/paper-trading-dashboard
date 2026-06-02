@@ -6,6 +6,7 @@ export type TradingAccountResponse = {
   equity: string | number
   unrealizedPnl: string | number
   realizedPnl: string | number
+  netPnl: string | number
   maxLeverage: string | number
   buyingPower: string | number
 }

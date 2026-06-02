@@ -11,6 +11,7 @@ public record TradingAccountUpdateMessage(
     BigDecimal equity,
     BigDecimal unrealizedPnl,
     BigDecimal realizedPnl,
+    BigDecimal netPnl,
     BigDecimal maxLeverage,
     BigDecimal buyingPower,
     Instant timestamp) {
@@ -22,6 +23,7 @@ public record TradingAccountUpdateMessage(
         account.equity(),
         account.unrealizedPnl(),
         account.realizedPnl(),
+        account.netPnl(),
         account.maxLeverage(),
         account.buyingPower(),
         Instant.now());
