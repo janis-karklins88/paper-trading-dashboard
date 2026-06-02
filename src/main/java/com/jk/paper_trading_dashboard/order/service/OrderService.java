@@ -10,7 +10,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
+import com.jk.paper_trading_dashboard.account.service.AccountEquitySnapshotService;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
@@ -49,6 +51,8 @@ public class OrderService {
   private final MarketPriceService marketPriceService;
   private final PositionPublisher positionPublisher;
   private final OrderPublisher orderPublisher;
+  private final TradingAccountPublisher tradingAccountPublisher;
+  private final AccountEquitySnapshotService accountEquitySnapshotService;
 
   @Transactional
   public OrderResponse placeOrder(UUID userId, PlaceOrderRequest request) {
@@ -93,6 +97,8 @@ public class OrderService {
 
     OrderResponse response = OrderResponse.from(order);
     orderPublisher.publishOrderUpdate(userId, response);
+    accountEquitySnapshotService.createSnapshotForAccount(account);
+    tradingAccountPublisher.publishAccountUpdate(userId, account);
     return response;
   }
 
@@ -119,6 +125,8 @@ public class OrderService {
 
     OrderResponse response = OrderResponse.from(order);
     orderPublisher.publishOrderUpdate(userId, response);
+    accountEquitySnapshotService.createSnapshotForAccount(account);
+    tradingAccountPublisher.publishAccountUpdate(userId, account);
     return response;
   }
 
@@ -279,13 +287,18 @@ public class OrderService {
       throw new InvalidOrderException("Order cannot be canceled from status " + order.getStatus());
     }
 
-    if (order.getStatus() == OrderStatus.OPEN) {
+    boolean releasedMargin = order.getStatus() == OrderStatus.OPEN;
+    if (releasedMargin) {
       account.releaseMargin(order.getMarginAmount());
     }
 
     order.markCanceled();
     OrderResponse response = OrderResponse.from(order);
     orderPublisher.publishOrderUpdate(userId, response);
+    if (releasedMargin) {
+      accountEquitySnapshotService.createSnapshotForAccount(account);
+    }
+    tradingAccountPublisher.publishAccountUpdate(userId, account);
     return response;
   }
 

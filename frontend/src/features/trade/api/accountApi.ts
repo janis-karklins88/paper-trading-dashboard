@@ -7,6 +7,19 @@ export type TradingAccountResponse = {
   unrealizedPnl: string | number
   realizedPnl: string | number
   maxLeverage: string | number
+  buyingPower: string | number
+}
+
+export type AccountEquityTimeframe = '1D' | '1W' | '1M' | '1Y' | 'ALL'
+
+export type AccountEquitySnapshotResponse = {
+  id: string
+  timestamp: string
+  equity: string | number
+  cashBalance: string | number
+  reservedMargin: string | number
+  realizedPnl: string | number
+  unrealizedPnl: string | number
 }
 
 type ApiErrorResponse = {
@@ -27,6 +40,23 @@ export async function getTradingAccount() {
   }
 
   return (await response.json()) as TradingAccountResponse
+}
+
+export async function getAccountEquityCurve(timeframe: AccountEquityTimeframe) {
+  const token = getStoredAuthToken()
+  const params = new URLSearchParams({ timeframe })
+
+  const response = await fetch(`/api/trading-account/equity-curve?${params}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response))
+  }
+
+  return (await response.json()) as AccountEquitySnapshotResponse[]
 }
 
 async function getErrorMessage(response: Response) {

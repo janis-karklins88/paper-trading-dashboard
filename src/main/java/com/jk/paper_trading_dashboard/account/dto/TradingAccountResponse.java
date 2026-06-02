@@ -10,7 +10,8 @@ public record TradingAccountResponse(
     BigDecimal equity,
     BigDecimal unrealizedPnl,
     BigDecimal realizedPnl,
-    BigDecimal maxLeverage) {
+    BigDecimal maxLeverage,
+    BigDecimal buyingPower) {
 
   public static TradingAccountResponse from(TradingAccount account) {
     return from(account, account.getUnrealizedPnl());
@@ -27,6 +28,7 @@ public record TradingAccountResponse(
         equity,
         unrealizedPnl,
         account.getRealizedPnl(),
-        account.getMaxLeverage());
+        account.getMaxLeverage(),
+        account.getCashBalance().multiply(account.getMaxLeverage()));
   }
 }

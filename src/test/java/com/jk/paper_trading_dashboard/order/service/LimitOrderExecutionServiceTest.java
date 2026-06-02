@@ -19,6 +19,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepository;
+import com.jk.paper_trading_dashboard.account.service.AccountEquitySnapshotService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
@@ -49,6 +51,12 @@ class LimitOrderExecutionServiceTest {
   @Mock
   private OrderPublisher orderPublisher;
 
+  @Mock
+  private TradingAccountPublisher tradingAccountPublisher;
+
+  @Mock
+  private AccountEquitySnapshotService accountEquitySnapshotService;
+
   private LimitOrderExecutionService limitOrderExecutionService;
   private TradingAccount account;
 
@@ -59,7 +67,9 @@ class LimitOrderExecutionServiceTest {
         tradingAccountRepository,
         positionService,
         positionPublisher,
-        orderPublisher);
+        orderPublisher,
+        tradingAccountPublisher,
+        accountEquitySnapshotService);
     account = new TradingAccount(new User("test@example.com", "hash"));
   }
 
@@ -104,6 +114,8 @@ class LimitOrderExecutionServiceTest {
     assertThat(captor.getValue().avgEntryPrice()).isEqualByComparingTo("99.99997500");
     assertThat(captor.getValue().currentPrice()).isEqualByComparingTo("99.95");
     verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
+    verify(accountEquitySnapshotService).createSnapshotForAccount(account);
+    verify(tradingAccountPublisher).publishAccountUpdate(account.getUser().getId(), account);
   }
 
   @Test
@@ -136,6 +148,8 @@ class LimitOrderExecutionServiceTest {
     assertThat(captor.getValue().avgEntryPrice()).isEqualByComparingTo("100.00997000");
     assertThat(captor.getValue().currentPrice()).isEqualByComparingTo("100.06");
     verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
+    verify(accountEquitySnapshotService).createSnapshotForAccount(account);
+    verify(tradingAccountPublisher).publishAccountUpdate(account.getUser().getId(), account);
   }
 
   private Order openLimitOrder(OrderSide side, BigDecimal limitPrice) {

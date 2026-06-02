@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepository;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionSide;
@@ -43,6 +44,9 @@ class PositionMarketDataUpdateServiceTest {
   @Mock
   private PositionCloseService positionCloseService;
 
+  @Mock
+  private TradingAccountPublisher tradingAccountPublisher;
+
   private PositionMarketDataUpdateService service;
   private TradingAccount account;
 
@@ -52,7 +56,8 @@ class PositionMarketDataUpdateServiceTest {
         positionRepository,
         positionPublisher,
         tradingAccountRepository,
-        positionCloseService);
+        positionCloseService,
+        tradingAccountPublisher);
     account = new TradingAccount(new User("test@example.com", "hash"));
   }
 
@@ -71,6 +76,7 @@ class PositionMarketDataUpdateServiceTest {
     assertThat(responseCaptor.getValue().status()).isEqualTo(PositionStatus.OPEN);
     assertThat(responseCaptor.getValue().currentPrice()).isEqualByComparingTo("105");
     assertThat(responseCaptor.getValue().unrealizedPnl()).isEqualByComparingTo("50");
+    verify(tradingAccountPublisher).publishAccountUpdate(account.getUser().getId(), account);
   }
 
   @Test

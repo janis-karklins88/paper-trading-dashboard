@@ -1,6 +1,5 @@
 package com.jk.paper_trading_dashboard.account.service;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,10 +9,9 @@ import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.domain.TradingAccountStatus;
 import com.jk.paper_trading_dashboard.account.dto.TradingAccountResponse;
 import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepository;
-import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
 import com.jk.paper_trading_dashboard.order.repository.OrderRepository;
-import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
 import com.jk.paper_trading_dashboard.position.repository.PositionRepository;
 import com.jk.paper_trading_dashboard.shared.exception.AlreadyExistsException;
@@ -35,7 +33,9 @@ public class TradingAccountService {
   private final TradingAccountRepository tradingAccountRepository;
   private final OrderRepository orderRepository;
   private final PositionRepository positionRepository;
-  private final MarketPriceService marketPriceService;
+  private final TradingAccountValuationService tradingAccountValuationService;
+  private final TradingAccountPublisher tradingAccountPublisher;
+  private final AccountEquitySnapshotService accountEquitySnapshotService;
 
   @Transactional
   public TradingAccount createForUser(User user) {
@@ -53,7 +53,7 @@ public class TradingAccountService {
 
   public TradingAccountResponse getAccount(UUID userId) {
     TradingAccount account = getActiveAccount(userId);
-    return TradingAccountResponse.from(account, calculateLiveUnrealizedPnl(account.getId()));
+    return tradingAccountValuationService.getAccountSummary(account);
   }
 
   @Transactional
@@ -64,20 +64,10 @@ public class TradingAccountService {
     validateNoOpenOrders(account.getId());
 
     account.reset();
-    return TradingAccountResponse.from(account);
-  }
-
-  private BigDecimal calculateLiveUnrealizedPnl(UUID tradingAccountId) {
-    return positionRepository.findByTradingAccountIdAndStatusOrderByOpenedAtDesc(tradingAccountId, PositionStatus.OPEN)
-        .stream()
-        .map(this::calculateLiveUnrealizedPnl)
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
-  }
-
-  private BigDecimal calculateLiveUnrealizedPnl(Position position) {
-    return marketPriceService.getCachedPrice(position.getSymbol())
-        .map(marketPrice -> position.calculateUnrealizedPnl(marketPrice.price()))
-        .orElse(position.getUnrealizedPnl());
+    TradingAccountResponse response = tradingAccountValuationService.getAccountSummary(account);
+    accountEquitySnapshotService.createSnapshotForAccount(account);
+    tradingAccountPublisher.publishAccountUpdate(userId, response);
+    return response;
   }
 
   private void validateNoOpenPositions(UUID tradingAccountId) {

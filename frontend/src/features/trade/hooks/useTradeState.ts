@@ -4,6 +4,7 @@ import {
   getTradingAccount,
   type TradingAccountResponse,
 } from '../api/accountApi'
+import { subscribeToTradingAccountUpdates } from '../api/accountStream'
 import {
   cancelOrder as cancelOrderRequest,
   getOrders,
@@ -152,6 +153,14 @@ export function useTradeState() {
 
     return () => window.clearInterval(intervalId)
   }, [loadTradingAccount])
+
+  useEffect(() => {
+    if (!userId) {
+      return
+    }
+
+    return subscribeToTradingAccountUpdates(userId, setTradingAccount)
+  }, [userId])
 
   useEffect(() => {
     if (!userId) {

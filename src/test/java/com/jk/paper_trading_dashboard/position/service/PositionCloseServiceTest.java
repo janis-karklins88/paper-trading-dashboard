@@ -17,6 +17,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
+import com.jk.paper_trading_dashboard.account.service.AccountEquitySnapshotService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
@@ -43,6 +45,12 @@ class PositionCloseServiceTest {
   @Mock
   private OrderPublisher orderPublisher;
 
+  @Mock
+  private TradingAccountPublisher tradingAccountPublisher;
+
+  @Mock
+  private AccountEquitySnapshotService accountEquitySnapshotService;
+
   private PositionCloseService positionCloseService;
   private TradingAccount account;
   private UUID userId;
@@ -52,7 +60,9 @@ class PositionCloseServiceTest {
     positionCloseService = new PositionCloseService(
         orderRepository,
         positionPublisher,
-        orderPublisher);
+        orderPublisher,
+        tradingAccountPublisher,
+        accountEquitySnapshotService);
     account = new TradingAccount(new User("test@example.com", "hash"));
     account.reserveMargin(new BigDecimal("1000"));
     userId = UUID.randomUUID();
@@ -90,6 +100,8 @@ class PositionCloseServiceTest {
     assertThat(orderCaptor.getValue().getFeeAmount()).isEqualByComparingTo("2.54872500");
     verify(orderPublisher).publishOrderUpdate(userId, OrderResponse.from(orderCaptor.getValue()));
     verify(positionPublisher).publishPositionUpdate(userId, response);
+    verify(accountEquitySnapshotService).createSnapshotForAccount(account);
+    verify(tradingAccountPublisher).publishAccountUpdate(userId, account);
   }
 
   @Test

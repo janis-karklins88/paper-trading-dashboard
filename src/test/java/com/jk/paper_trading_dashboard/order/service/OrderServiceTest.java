@@ -17,7 +17,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
+import com.jk.paper_trading_dashboard.account.service.AccountEquitySnapshotService;
 import com.jk.paper_trading_dashboard.account.service.TradingAccountService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.marketdata.service.MarketPriceService;
 import com.jk.paper_trading_dashboard.order.domain.Order;
@@ -56,6 +58,12 @@ class OrderServiceTest {
   @Mock
   private OrderPublisher orderPublisher;
 
+  @Mock
+  private TradingAccountPublisher tradingAccountPublisher;
+
+  @Mock
+  private AccountEquitySnapshotService accountEquitySnapshotService;
+
   private OrderService orderService;
   private TradingAccount account;
   private UUID userId;
@@ -68,7 +76,9 @@ class OrderServiceTest {
         positionService,
         marketPriceService,
         positionPublisher,
-        orderPublisher);
+        orderPublisher,
+        tradingAccountPublisher,
+        accountEquitySnapshotService);
     account = new TradingAccount(new User("test@example.com", "hash"));
     userId = UUID.randomUUID();
     when(tradingAccountService.getActiveAccount(userId)).thenReturn(account);
@@ -119,6 +129,8 @@ class OrderServiceTest {
     assertThat(positionRequestCaptor.getValue().takeProfitPrice()).isEqualByComparingTo("300");
     assertThat(positionRequestCaptor.getValue().stopLossPrice()).isEqualByComparingTo("220");
     verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
+    verify(accountEquitySnapshotService).createSnapshotForAccount(account);
+    verify(tradingAccountPublisher).publishAccountUpdate(userId, account);
   }
 
   @Test
@@ -144,5 +156,7 @@ class OrderServiceTest {
     verify(positionService, never()).createPositionForAccount(any(), any());
     verify(marketPriceService, never()).refreshPrice(any());
     verify(orderPublisher).publishOrderUpdate(any(), any(OrderResponse.class));
+    verify(accountEquitySnapshotService).createSnapshotForAccount(account);
+    verify(tradingAccountPublisher).publishAccountUpdate(userId, account);
   }
 }

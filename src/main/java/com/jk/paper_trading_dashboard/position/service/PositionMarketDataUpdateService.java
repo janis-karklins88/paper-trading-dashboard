@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepository;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.marketdata.domain.MarketPrice;
 import com.jk.paper_trading_dashboard.position.domain.Position;
 import com.jk.paper_trading_dashboard.position.domain.PositionStatus;
@@ -24,6 +25,7 @@ public class PositionMarketDataUpdateService {
   private final PositionPublisher positionPublisher;
   private final TradingAccountRepository tradingAccountRepository;
   private final PositionCloseService positionCloseService;
+  private final TradingAccountPublisher tradingAccountPublisher;
 
   @Transactional
   public void onPriceRefreshed(MarketPrice marketPrice) {
@@ -42,6 +44,7 @@ public class PositionMarketDataUpdateService {
   }
 
   private void publishLivePosition(Position position, MarketPrice marketPrice) {
+    TradingAccount account = resolveAccount(position);
     BigDecimal unrealizedPnl = position.calculateUnrealizedPnl(marketPrice.price());
 
     PositionResponse response = PositionResponse.from(
@@ -49,7 +52,8 @@ public class PositionMarketDataUpdateService {
         marketPrice.price(),
         unrealizedPnl);
 
-    positionPublisher.publishPositionUpdate(resolveAccount(position).getUser().getId(), response);
+    positionPublisher.publishPositionUpdate(account.getUser().getId(), response);
+    tradingAccountPublisher.publishAccountUpdate(account.getUser().getId(), account);
   }
 
   private TradingAccount resolveAccount(Position position) {

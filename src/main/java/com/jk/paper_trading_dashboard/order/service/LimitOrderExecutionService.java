@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
 import com.jk.paper_trading_dashboard.account.repository.TradingAccountRepository;
+import com.jk.paper_trading_dashboard.account.service.AccountEquitySnapshotService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.domain.OrderStatus;
@@ -39,6 +41,8 @@ public class LimitOrderExecutionService {
   private final PositionService positionService;
   private final PositionPublisher positionPublisher;
   private final OrderPublisher orderPublisher;
+  private final TradingAccountPublisher tradingAccountPublisher;
+  private final AccountEquitySnapshotService accountEquitySnapshotService;
 
   @Transactional
   public void executeLimitOrder(UUID orderId, BigDecimal marketPrice) {
@@ -62,6 +66,8 @@ public class LimitOrderExecutionService {
     account.applyPositionOpen(position.getUnrealizedPnl());
     positionPublisher.publishPositionUpdate(account.getUser().getId(), PositionResponse.from(position));
     orderPublisher.publishOrderUpdate(account.getUser().getId(), OrderResponse.from(order));
+    accountEquitySnapshotService.createSnapshotForAccount(account);
+    tradingAccountPublisher.publishAccountUpdate(account.getUser().getId(), account);
   }
 
   private boolean isExecutableLimitOrder(Order order, BigDecimal executionPrice) {

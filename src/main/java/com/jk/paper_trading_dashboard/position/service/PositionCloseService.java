@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.jk.paper_trading_dashboard.account.domain.TradingAccount;
+import com.jk.paper_trading_dashboard.account.service.AccountEquitySnapshotService;
+import com.jk.paper_trading_dashboard.account.ws.TradingAccountPublisher;
 import com.jk.paper_trading_dashboard.order.domain.Order;
 import com.jk.paper_trading_dashboard.order.domain.OrderSide;
 import com.jk.paper_trading_dashboard.order.dto.OrderResponse;
@@ -34,6 +36,8 @@ public class PositionCloseService {
   private final OrderRepository orderRepository;
   private final PositionPublisher positionPublisher;
   private final OrderPublisher orderPublisher;
+  private final TradingAccountPublisher tradingAccountPublisher;
+  private final AccountEquitySnapshotService accountEquitySnapshotService;
 
   @Transactional
   public PositionResponse closeAtMarketPrice(
@@ -72,6 +76,8 @@ public class PositionCloseService {
 
     PositionResponse response = PositionResponse.from(position);
     positionPublisher.publishPositionUpdate(userId, response);
+    accountEquitySnapshotService.createSnapshotForAccount(account);
+    tradingAccountPublisher.publishAccountUpdate(userId, account);
     return response;
   }
 
