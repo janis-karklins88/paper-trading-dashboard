@@ -174,9 +174,7 @@ export function EquityCurveChart() {
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-bold text-[#f7fbff]">Equity curve</h2>
-          <p className="mt-1 text-sm text-[#9db2d0]">
-            Account equity from persisted portfolio snapshots
-          </p>
+          
         </div>
 
         <div className="flex w-fit rounded-md border border-[#21304a] bg-[#0f1727] p-1">

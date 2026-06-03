@@ -20,7 +20,7 @@ import com.jk.paper_trading_dashboard.marketdata.domain.Symbols;
 @Service
 public class AlpacaMarketDataClient implements MarketDataClient {
 
-  private static final int CANDLE_LIMIT = 200;
+  private static final int CANDLE_LIMIT = 1000;
   private static final int PRICE_SCALE = 8;
 
   private final RestClient restClient;

@@ -29,8 +29,16 @@ const timeframes: Array<{ label: string; value: CandleTimeframe }> = [
   { label: '1d', value: '1d' },
 ]
 
-const TEMP_CHART_REFRESH_MS = 15_000
+const TEMP_CHART_REFRESH_MS = 60_000
 const CHART_TIME_ZONE = 'Europe/Riga'
+const DEFAULT_VISIBLE_CANDLES: Record<CandleTimeframe, number> = {
+  '1m': 200,
+  '5m': 180,
+  '15m': 150,
+  '1h': 120,
+  '1d': 200,
+}
+const DEFAULT_RIGHT_OFFSET_CANDLES = 5
 
 type TradingChartProps = {
   chartLevels: ChartLevel[]
@@ -50,7 +58,6 @@ export function TradingChart({
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const priceLinesRef = useRef<IPriceLine[]>([])
   const previousCandleKeyRef = useRef('')
-  const previousSelectedSymbolRef = useRef('')
 
   const [timeframe, setTimeframe] = useState<CandleTimeframe>('1h')
   const [candles, setCandles] = useState<MarketCandle[]>([])
@@ -254,24 +261,14 @@ export function TradingChart({
       .sort((left, right) => Number(left.time) - Number(right.time))
 
     const chart = chartRef.current
-    const previousVisibleRange = chart?.timeScale().getVisibleLogicalRange()
-
     seriesRef.current.setData(chartData)
 
     if (candleKey !== previousCandleKeyRef.current) {
-      const symbolChanged = selectedSymbol !== previousSelectedSymbolRef.current
-      const shouldFitContent = !previousCandleKeyRef.current || !symbolChanged
-
-      if (shouldFitContent) {
-        chart?.timeScale().fitContent()
-      } else if (previousVisibleRange) {
-        chart?.timeScale().setVisibleLogicalRange(previousVisibleRange)
-      }
+      applyDefaultVisibleRange(chart, chartData.length, timeframe)
 
       previousCandleKeyRef.current = candleKey
-      previousSelectedSymbolRef.current = selectedSymbol
     }
-  }, [candleKey, candles, selectedSymbol])
+  }, [candleKey, candles, timeframe])
 
   useEffect(() => {
     const series = seriesRef.current
@@ -394,6 +391,24 @@ function isValidChartCandle(candle: CandlestickData<UTCTimestamp>) {
     Number.isFinite(candle.low) &&
     Number.isFinite(candle.close)
   )
+}
+
+function applyDefaultVisibleRange(
+  chart: IChartApi | null | undefined,
+  candleCount: number,
+  timeframe: CandleTimeframe,
+) {
+  if (!chart || candleCount === 0) {
+    return
+  }
+
+  const visibleCount = DEFAULT_VISIBLE_CANDLES[timeframe]
+  const lastIndex = candleCount - 1
+
+  chart.timeScale().setVisibleLogicalRange({
+    from: Math.max(0, lastIndex - visibleCount + 1),
+    to: lastIndex + DEFAULT_RIGHT_OFFSET_CANDLES,
+  })
 }
 
 function updateLastCandle(candles: MarketCandle[], livePrice: number) {

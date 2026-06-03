@@ -1,12 +1,18 @@
 import {
   ChartLine,
+  CheckCircle2,
+  Info,
   LayoutGrid,
   LogOut,
+  X,
+  XCircle,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { clearAuthToken, getCurrentUser } from '../auth/authApi'
+import type { OrderResponse } from '../features/trade/api/orderApi'
+import { subscribeToOrderUpdates } from '../features/trade/api/orderStream'
 import type { UserResponse } from '../types/auth'
 
 const navItems: Array<{ to: string; label: string; icon: LucideIcon }> = [
@@ -14,9 +20,21 @@ const navItems: Array<{ to: string; label: string; icon: LucideIcon }> = [
   { to: '/trade', label: 'Trade', icon: ChartLine },
 ]
 
+type ToastTone = 'success' | 'danger' | 'neutral'
+
+type ToastMessage = {
+  id: string
+  message: string
+  title: string
+  tone: ToastTone
+}
+
 export function AppLayout() {
   const navigate = useNavigate()
   const [user, setUser] = useState<UserResponse | null>(null)
+  const [toasts, setToasts] = useState<ToastMessage[]>([])
+  const seenOrderStatusesRef = useRef(new Map<string, string>())
+  const toastTimeoutsRef = useRef<number[]>([])
 
   useEffect(() => {
     let isMounted = true
@@ -38,9 +56,56 @@ export function AppLayout() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!user?.id) {
+      return
+    }
+
+    return subscribeToOrderUpdates(user.id, (orderUpdate) => {
+      const previousStatus = seenOrderStatusesRef.current.get(orderUpdate.id)
+
+      if (previousStatus === orderUpdate.status) {
+        return
+      }
+
+      seenOrderStatusesRef.current.set(orderUpdate.id, orderUpdate.status)
+
+      const toast = buildOrderToast(orderUpdate)
+
+      if (toast) {
+        addToast(toast)
+      }
+    })
+  }, [user?.id])
+
+  useEffect(() => {
+    return () => {
+      toastTimeoutsRef.current.forEach(window.clearTimeout)
+      toastTimeoutsRef.current = []
+    }
+  }, [])
+
   function handleSignOut() {
     clearAuthToken()
     navigate('/login', { replace: true })
+  }
+
+  function addToast(toast: Omit<ToastMessage, 'id'>) {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const nextToast = { ...toast, id }
+
+    setToasts((currentToasts) => [nextToast, ...currentToasts].slice(0, 4))
+
+    const timeoutId = window.setTimeout(() => {
+      dismissToast(id)
+    }, 6000)
+    toastTimeoutsRef.current.push(timeoutId)
+  }
+
+  function dismissToast(toastId: string) {
+    setToasts((currentToasts) =>
+      currentToasts.filter((toast) => toast.id !== toastId),
+    )
   }
 
   return (
@@ -117,8 +182,126 @@ export function AppLayout() {
       <main className="min-w-0 p-5.5 md:p-8">
         <Outlet />
       </main>
+
+      <ToastStack onDismiss={dismissToast} toasts={toasts} />
     </div>
   )
+}
+
+function ToastStack({
+  onDismiss,
+  toasts,
+}: {
+  onDismiss: (toastId: string) => void
+  toasts: ToastMessage[]
+}) {
+  if (toasts.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="fixed right-4 bottom-4 z-50 grid w-[min(26rem,calc(100vw-2rem))] gap-3">
+      {toasts.map((toast) => {
+        const Icon = toastIcon(toast.tone)
+
+        return (
+          <div
+            className={[
+              'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-lg border bg-[#121b2d] p-4 shadow-[0_18px_50px_rgba(3,8,20,0.35)]',
+              toastClass(toast.tone),
+            ].join(' ')}
+            key={toast.id}
+          >
+            <Icon
+              aria-hidden="true"
+              className="mt-0.5 h-5 w-5 shrink-0"
+              strokeWidth={1.9}
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-[#f7fbff]">
+                {toast.title}
+              </p>
+              <p className="mt-1 text-sm leading-snug text-[#b9c7df]">
+                {toast.message}
+              </p>
+            </div>
+            <button
+              aria-label="Dismiss notification"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#9db2d0] hover:bg-white/8 hover:text-white"
+              onClick={() => onDismiss(toast.id)}
+              type="button"
+            >
+              <X aria-hidden="true" size={16} strokeWidth={2} />
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function buildOrderToast(order: OrderResponse): Omit<ToastMessage, 'id'> | null {
+  if (order.status === 'FILLED') {
+    return {
+      title: 'Order filled',
+      message: `${order.side} ${order.type.toLowerCase()} order for ${order.symbol} filled${formatExecutionPrice(order)}.`,
+      tone: 'success',
+    }
+  }
+
+  if (order.status === 'REJECTED') {
+    return {
+      title: 'Order rejected',
+      message: order.rejectReason || `${order.symbol} order was rejected.`,
+      tone: 'danger',
+    }
+  }
+
+  if (order.status === 'CANCELED') {
+    return {
+      title: 'Order canceled',
+      message: `${order.type} order for ${order.symbol} was canceled.`,
+      tone: 'neutral',
+    }
+  }
+
+  return null
+}
+
+function formatExecutionPrice(order: OrderResponse) {
+  const price = Number(order.executionPrice)
+
+  if (!Number.isFinite(price) || price <= 0) {
+    return ''
+  }
+
+  return ` at ${price.toLocaleString('en-US', {
+    maximumFractionDigits: 8,
+  })}`
+}
+
+function toastIcon(tone: ToastTone) {
+  if (tone === 'success') {
+    return CheckCircle2
+  }
+
+  if (tone === 'danger') {
+    return XCircle
+  }
+
+  return Info
+}
+
+function toastClass(tone: ToastTone) {
+  if (tone === 'success') {
+    return 'border-[#00d084]/35 text-[#00d084]'
+  }
+
+  if (tone === 'danger') {
+    return 'border-[#ff5367]/35 text-[#ff8b98]'
+  }
+
+  return 'border-[#334666] text-[#9fb2ff]'
 }
 
 function getUserInitials(user: UserResponse | null) {
