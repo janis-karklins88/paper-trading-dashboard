@@ -4,6 +4,20 @@ A full-stack paper trading application for placing simulated trades, tracking op
 
 The project uses a Spring Boot backend with PostgreSQL persistence and a React/Vite frontend. Market data and symbol metadata are fetched from Alpaca, while account, order, position, and price updates are pushed to the UI through WebSocket/STOMP topics.
 
+## Screenshots
+
+### Dashboard
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Trading Chart
+
+![Trading chart](docs/screenshots/chart.png)
+
+### Positions and Orders
+
+![Positions and orders](docs/screenshots/positions_orders.png)
+
 ## Features
 
 - User registration, login, and JWT-protected API access
